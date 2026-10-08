@@ -23,12 +23,17 @@ First jobs: Rock N Roll Sushi, Pancheros Mexican Grill and Hurts Donut, in vario
 
 ## Decisions
 - Always create a NEW post per location, even for a brand that already has a post.
+- Post text calls the firm "Unite" or "we", never "Unite Ideas" (enforced in code too).
+- Never name the owners, franchisees or operators (or their holding companies) in posts.
+- Post title and header: "<Business> - <City>", e.g. "Rock N Roll Sushi - Oxford" (set in code).
 - Categories (taxonomy `portfolio_category`): always `architecture` (term 116, "ARCHITECTURE").
   Restaurants also get `qsr` ("QSR"), created automatically if missing. Other terms:
   `visualization` (119), `campaign` (117).
 - Layout template: post 7178 (Pancheros). Project Name format for restaurants: "<Brand> QSR".
 - Facebook and Instagram are skipped (they block automated access).
-- Model: claude-opus-5-5 with server-side refusal fallbacks.
+- Models (Sean's choice, 2026-10-08, to cut cost): research and write-up on claude-sonnet-5-5
+  with server-side refusal fallbacks (`CLAUDE_MODEL`); the photo check on claude-haiku-5-5
+  (`CLAUDE_PHOTO_MODEL`), which has no server-side fallback, so none is sent.
 
 ## WordPress facts
 - Site: https://uniteideas.com, hosted on WP Engine, theme Bauen, built with Elementor.

@@ -30,7 +30,7 @@ def test_gather_end_to_end(tmp_path, monkeypatch):
     (project / "FINALS").mkdir()
     (project / "Proposals" / "proposal.txt").write_text("Architecture for a new Rock N Roll Sushi in Mansfield.")
     (project / "FINALS" / "site.jpg").write_bytes(jpeg((90, 90, 90), 40) + b"\0" * 200_000)
-    cfg = Config("k", "claude-opus-5-5", "gkey", "https://uniteideas.com", "u", "p", "u", "h", 7178, root, tmp_path / "jobs")
+    cfg = Config("k", "claude-opus-5-5", "claude-haiku-5-5", "gkey", "https://uniteideas.com", "u", "p", "u", "h", 7178, root, tmp_path / "jobs")
 
     place = places.Place("pid", "Rock N Roll Sushi", "123 Main St, Mansfield, TX", "", "https://maps.google.com/x")
     place.photos = [places.PlacePhoto("unused", "places/pid/photos/p1", "Jane Doe", place.maps_uri)]
@@ -38,7 +38,7 @@ def test_gather_end_to_end(tmp_path, monkeypatch):
     research = {"address": "123 Main St", "status": "open", "opened": "2025", "facts": [],
                 "organizations": [], "photo_pages": ["https://news.example.com/rnr", "https://facebook.com/x"],
                 "uncertain": []}
-    monkeypatch.setattr(analysis, "research_project", lambda *a: (research, ResearchResult("notes", [])))
+    monkeypatch.setattr(analysis, "research_project", lambda *a, **k: (research, ResearchResult("notes", [])))
     monkeypatch.setattr(scrape, "page_images", lambda client, page: ["https://news.example.com/a.jpg", "https://news.example.com/food.jpg"])
 
     downloads = {
@@ -59,10 +59,11 @@ def test_gather_end_to_end(tmp_path, monkeypatch):
     fake_classify.calls = 0
     monkeypatch.setattr(analysis, "classify_photo", fake_classify)
     seen_docs = {}
-    def fake_write(claude, business, city, year, documents, research):
+    def fake_write(claude, business, city, year, documents, research, notes=""):
         seen_docs["docs"], seen_docs["year"] = documents, year
         return {"title": "Rock N Roll Sushi Mansfield", "project_name": "Rock N Roll Sushi QSR", "location": "Mansfield, TX",
-                "year": year, "paragraphs": ["p"], "excerpt": "e", "is_restaurant": True, "review_notes": []}
+                "year": year, "paragraphs": ["Unite Ideas' design team drew the plans for Unite Ideas."],
+                "excerpt": "e", "is_restaurant": True, "review_notes": []}
     monkeypatch.setattr(analysis, "write_post", fake_write)
 
     job = pipeline.Job.create(cfg, "Rock N Roll Sushi", "Mansfield, TX")
@@ -74,6 +75,9 @@ def test_gather_end_to_end(tmp_path, monkeypatch):
     assert seen_docs["year"] == "2025"
     assert seen_docs["docs"][0][0] == "Proposals/proposal.txt"
     assert "gkey" not in job.path.read_text()  # API key never stored
+    assert job.data["draft"]["title"] == "Rock N Roll Sushi - Mansfield"
+    assert job.data["draft"]["slug"] == "rock-n-roll-sushi-mansfield"
+    assert job.data["draft"]["paragraphs"] == ["Unite's design team drew the plans for Unite."]
     sources = sorted(c.source for c in job.candidates)
     assert sources == ["dropbox", "google", "web", "web"]
     google = next(c for c in job.candidates if c.source == "google")

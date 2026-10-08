@@ -32,7 +32,7 @@ def sse(msg):
     return "".join(f"event: {name}\ndata: {json.dumps(data)}\n\n" for name, data in events)
 
 
-def fake_claude(responses, requests):
+def fake_claude(responses, requests, model="claude-opus-5-5"):
     def handler(request):
         body = json.loads(request.content)
         requests.append({"body": body, "headers": dict(request.headers)})
@@ -41,7 +41,7 @@ def fake_claude(responses, requests):
             return httpx2.Response(200, text=sse(msg), headers={"content-type": "text/event-stream"})
         return httpx2.Response(200, json=msg)
 
-    claude = Claude("test-key", "claude-opus-5-5")
+    claude = Claude("test-key", model)
     claude.client = anthropic.Anthropic(
         api_key="test-key", http_client=anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(handler)), max_retries=0
     )
@@ -60,6 +60,17 @@ def test_json_request_shape():
     assert body["output_config"]["effort"] == "low"
     assert "server-side-fallback-2026-07-01" in requests[0]["headers"]["anthropic-beta"]
     assert "thinking" not in body and "temperature" not in body
+
+
+def test_haiku_sends_no_fallback():
+    # Haiku has no server-side fallback, so the parameter and its beta header must be left off.
+    requests = []
+    claude = fake_claude([message([{"type": "text", "text": '{"kind": "exterior"}'}])], requests, model="claude-haiku-5-5")
+    claude.json([{"type": "text", "text": "hi"}], {"type": "object"}, system="sys")
+    body = requests[0]["body"]
+    assert body["model"] == "claude-haiku-5-5"
+    assert "fallbacks" not in body
+    assert "server-side-fallback" not in requests[0]["headers"].get("anthropic-beta", "")
 
 
 def test_json_refusal_raises():

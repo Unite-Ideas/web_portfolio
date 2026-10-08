@@ -108,6 +108,9 @@ def main(argv: list[str] | None = None) -> None:
                      help="Dropbox project folder, if the automatic match is wrong (repeat to group several)")
     new.add_argument("--redo", action="append", default=[], choices=["dropbox", "place", "research", "photos", "writeup"],
                      help="Run a step again even if it already finished (repeatable)")
+    new.add_argument("--notes", help="Background for the research and write-up: other names, what made the project notable")
+    new.add_argument("--title", help='Post title, if not "<business> - <city>"')
+    new.add_argument("--max-photos", type=int, help="How many Dropbox photos to check (default 40)")
     new.add_argument("--no-browser", action="store_true", help="Do not open the review page automatically")
 
     review = sub.add_parser("review", help="Reopen the review page for an existing job")
@@ -145,6 +148,10 @@ def main(argv: list[str] | None = None) -> None:
         for step in args.redo:
             for key in redo_keys[step]:
                 job.data.pop(key, None)
+        # Saved with the job, so a later rerun keeps them unless they are given again.
+        for key, value in (("notes", args.notes), ("title", args.title), ("max_photos", args.max_photos)):
+            if value:
+                job.data[key] = value
         job.save()
         log(f"Job folder: {job.dir}")
         pipeline.gather(cfg, job, log, choose_folder, args.folder)

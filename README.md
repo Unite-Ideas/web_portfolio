@@ -111,8 +111,10 @@ description in the Media Library. Check that you can use a photo before publishi
 
 ## Costs
 
-Each job makes roughly 30 to 60 Claude requests: one research session, one per photo and one for
-the write-up. Google Places photo requests usually fall inside Google's free monthly usage.
+Each job makes one research session and one write-up request on Claude Sonnet (`CLAUDE_MODEL`),
+plus one request per photo on Claude Haiku (`CLAUDE_PHOTO_MODEL`), which costs a fraction of a
+cent per photo. A typical job costs well under a dollar. Google Places photo requests usually
+fall inside Google's free monthly usage.
 
 ## Changing the template
 

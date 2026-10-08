@@ -15,6 +15,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 class Config:
     anthropic_api_key: str
     claude_model: str
+    photo_model: str
     google_maps_api_key: str
     wp_url: str
     wp_user: str
@@ -50,7 +51,9 @@ def load_config() -> Config:
         jobs_dir = PROJECT_ROOT / jobs_dir
     return Config(
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
-        claude_model=os.getenv("CLAUDE_MODEL", "claude-opus-5-5"),
+        # Research and write-up; the photo check runs many small requests on a cheaper model.
+        claude_model=os.getenv("CLAUDE_MODEL", "claude-sonnet-5-5"),
+        photo_model=os.getenv("CLAUDE_PHOTO_MODEL", "claude-haiku-5-5"),
         google_maps_api_key=os.getenv("GOOGLE_MAPS_API_KEY", ""),
         wp_url=os.getenv("WP_URL", "https://uniteideas.com").rstrip("/"),
         wp_user=os.getenv("WP_USER", ""),

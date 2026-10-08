@@ -46,6 +46,7 @@ class Candidate:
     review: dict = field(default_factory=dict)  # Claude's classification
     score: float = 0.0
     keep: bool = False  # suggested for the post
+    picked: bool = False  # from a folder Sean picked by hand (renders allowed)
 
     def to_dict(self) -> dict:
         return asdict(self)

@@ -64,8 +64,12 @@ RESEARCH_SCHEMA = {
 }
 
 
-def research_project(claude: Claude, business: str, city: str, place_address: str = "") -> tuple[dict, ResearchResult]:
+def research_project(
+    claude: Claude, business: str, city: str, place_address: str = "", notes: str = ""
+) -> tuple[dict, ResearchResult]:
     place_line = f"Google listing address: {place_address}" if place_address else ""
+    if notes:
+        place_line += f"\nBackground from the firm (accurate; use it to guide the search, including other names):\n{notes}"
     raw = claude.research(
         RESEARCH_PROMPT.format(business=business, city=city, place_line=place_line),
         system=RESEARCH_SYSTEM,
@@ -137,9 +141,11 @@ def classify_photo(claude: Claude, jpeg: bytes, business: str, city: str, contex
     return result
 
 
-def photo_score(review: dict) -> float:
-    """Higher is better. Zero means 'not a building photo'."""
-    if not review or review.get("kind") not in BUILDING_KINDS or not review.get("shows_building"):
+def photo_score(review: dict, allow_renders: bool = False) -> float:
+    """Higher is better. Zero means 'not a building photo'. Renders only count when they
+    come from a folder picked by hand."""
+    kinds = BUILDING_KINDS | ({"rendering"} if allow_renders else set())
+    if not review or review.get("kind") not in kinds or not review.get("shows_building"):
         return 0.0
     if review.get("matches_business") == "no":
         return 0.0
@@ -174,17 +180,19 @@ Style:
 - Plain, confident and specific. Short sentences. No hype words such as "stunning", "state of the art" or "nestled".
 - Never use em dashes.
 - Usually one or two short paragraphs. If little is known, one or two sentences is fine.
-- Describe the project: what was built or renovated, where, for whom, and what makes it notable.
-- Mention Unite Ideas' role only when the project documents show what it was (for example architecture,
-  design, or visualization), using "we" or "Unite Ideas".
+- Describe the project: what was built or renovated, where, for which brand, and what makes it notable.
+- Mention the firm's role only when the project documents show what it was (for example architecture,
+  design, or visualization). Call the firm "we" or "Unite", never "Unite Ideas".
 - Credit developers, builders and city partners by name when sources support it.
+- Never name the owners, franchisees or operators, or the companies they own the business through.
+  Refer to them as "the owners" or "the franchisee" if needed.
 - Use only facts from the material provided. Never include prices, fees, budgets, contract terms,
   or anyone's phone number or email address."""
 
 WRITEUP_PROMPT = """Write the portfolio entry for {business} in {city}.
 
 Fields:
-- title: the business name and city, like "{business} {city_name}".
+- title: the business name, a hyphen and the city, like "{business} - {city_name}".
 - project_name: for a restaurant, the brand followed by "QSR" (e.g. "Pancheros QSR"); otherwise a short project name.
 - location: "City, ST".
 - year: {year_hint}
@@ -192,6 +200,9 @@ Fields:
 - excerpt: one sentence summary for search results, under 160 characters.
 - is_restaurant: true for restaurants, cafes, coffee shops, bakeries and other food service.
 - review_notes: anything uncertain or contradictory the owner should check before publishing.
+
+NOTES FROM THE FIRM (accurate; follow any naming or wording instructions in them):
+{notes}
 
 PROJECT DOCUMENTS FROM DROPBOX:
 {documents}
@@ -207,6 +218,7 @@ def write_post(
     year_hint: str,
     documents: list[tuple[str, str]],
     research: dict,
+    notes: str = "",
 ) -> dict:
     docs_text = "\n\n".join(f"--- {name} ---\n{text}" for name, text in documents) or "(none found)"
     facts = "\n".join(f"- {f['fact']} ({f['source_url']})" for f in research.get("facts", []))
@@ -222,6 +234,7 @@ def write_post(
             city=city,
             city_name=city_name,
             year_hint=f"use {year_hint}" if year_hint else "the year the project was done, from the documents",
+            notes=notes or "(none)",
             documents=docs_text,
             research=research_text,
         ),

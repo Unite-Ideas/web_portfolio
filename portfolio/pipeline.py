@@ -22,10 +22,15 @@ from .llm import Claude
 
 MAX_WEB_PAGES = 15
 MAX_WEB_IMAGES = 40
-MAX_DROPBOX_IMAGES = 20
+MAX_DROPBOX_IMAGES = 40
 SUGGESTED_PHOTOS = 8
 
 Log = Callable[[str], None]
+
+
+def max_photos(job: "Job") -> int:
+    """How many Dropbox photos go to the photo check (--max-photos, default 40)."""
+    return int(job.data.get("max_photos") or MAX_DROPBOX_IMAGES)
 
 
 class Job:
@@ -85,7 +90,7 @@ def step_dropbox(
         return
     for folder in folders:
         log(f"Reading Dropbox folder: {folder}")
-    docs = dropbox_local.read_project(folders)
+    docs = dropbox_local.read_project(folders, max_images=max_photos(job))
     # The first folder chosen is the main one; its date gives the project year.
     year = dropbox_local.folder_year(folders[0].name, folders[0].parent.name)
     job.data["dropbox"] = {
@@ -94,6 +99,7 @@ def step_dropbox(
         "year": year,
         "documents": [{"name": n, "text": t} for n, t in docs.documents],
         "images": [str(p) for p in docs.images],
+        "picked_images": [str(p) for p in docs.picked_images],
     }
     log(f"  {len(docs.documents)} documents, {len(docs.images)} photos")
     job.save()
@@ -110,7 +116,7 @@ def step_place(cfg: Config, job: Job, log: Log) -> None:
     log("Looking up the Google listing...")
     place = places.find_place(cfg.google_maps_api_key, job.data["business"], job.data["city"])
     if place is None:
-        log("  No Google listing found.")
+        log(f"  No Google listing found in {job.data['city']}; skipping Google listing photos.")
         job.data["place"] = None
     else:
         log(f"  {place.name}, {place.address} ({len(place.photos)} photos)")
@@ -131,7 +137,9 @@ def step_research(claude: Claude, job: Job, log: Log) -> None:
         return
     log("Researching the project online (this can take a few minutes)...")
     address = (job.data.get("place") or {}).get("address", "")
-    structured, raw = analysis.research_project(claude, job.data["business"], job.data["city"], address)
+    structured, raw = analysis.research_project(
+        claude, job.data["business"], job.data["city"], address, notes=job.data.get("notes", "")
+    )
     job.data["research"] = structured
     job.data["research_notes"] = raw.text
     job.data["research_sources"] = raw.sources
@@ -158,8 +166,9 @@ def step_collect(cfg: Config, job: Job, log: Log) -> None:
             )
             jobs.append((cand, lambda u=url: images.fetch_bytes(client, u)))
 
-        for path in job.data.get("dropbox", {}).get("images", [])[:MAX_DROPBOX_IMAGES]:
-            cand = Candidate(key=images.candidate_key(path), source="dropbox", origin_url=path)
+        picked = set(job.data.get("dropbox", {}).get("picked_images", []))
+        for path in job.data.get("dropbox", {}).get("images", [])[: max_photos(job)]:
+            cand = Candidate(key=images.candidate_key(path), source="dropbox", origin_url=path, picked=path in picked)
             jobs.append((cand, lambda p=path: Path(p).read_bytes()))
 
         research = job.data.get("research", {})
@@ -207,13 +216,15 @@ def step_classify(claude: Claude, job: Job, log: Log) -> None:
         context = {"google": "the business's Google listing", "dropbox": "the firm's own project folder"}.get(
             cand.source, f"web page {cand.page_url}"
         )
+        if cand.picked:
+            context = "a folder of this project's photos and renders that the firm picked by hand"
         try:
             cand.review = analysis.classify_photo(
                 claude, images.analysis_jpeg(job.dir, cand), job.data["business"], job.data["city"], context
             )
         except Exception as exc:  # one bad photo should not stop the run
             cand.review = {"error": str(exc)}
-        cand.score = analysis.photo_score(cand.review)
+        cand.score = analysis.photo_score(cand.review, allow_renders=cand.picked)
         return cand
 
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -230,6 +241,13 @@ def step_classify(claude: Claude, job: Job, log: Log) -> None:
     job.save()
 
 
+def firm_name(text: str) -> str:
+    """Posts call the firm "Unite", never "Unite Ideas"."""
+    for old, new in (("Unite Ideas's", "Unite's"), ("Unite Ideas'", "Unite's"), ("Unite Ideas", "Unite")):
+        text = text.replace(old, new)
+    return text
+
+
 def step_write(claude: Claude, job: Job, log: Log) -> None:
     if "draft" in job.data:
         return
@@ -243,16 +261,21 @@ def step_write(claude: Claude, job: Job, log: Log) -> None:
         str(year) if year else "",
         [(d["name"], d["text"]) for d in dropbox.get("documents", [])],
         job.data.get("research", {}),
+        notes=job.data.get("notes", ""),
     )
     categories = ["architecture"] + (["qsr"] if post["is_restaurant"] else [])
+    if any(c.keep and c.review.get("kind") == "rendering" for c in job.candidates):
+        categories.append("visualization")
+    # Title format is "Rock N Roll Sushi - Oxford" unless --title gave one.
+    title = job.data.get("title") or f"{job.data['business']} - {job.data['city'].split(',')[0].strip()}"
     job.data["draft"] = {
-        "title": post["title"],
-        "slug": wordpress.slugify(post["title"]),
+        "title": title,
+        "slug": wordpress.slugify(title),
         "project_name": post["project_name"],
         "location": post["location"],
         "year": post["year"],
-        "paragraphs": post["paragraphs"],
-        "excerpt": post["excerpt"],
+        "paragraphs": [firm_name(p) for p in post["paragraphs"]],
+        "excerpt": firm_name(post["excerpt"]),
         "categories": categories,
         "review_notes": post["review_notes"],
     }
@@ -263,11 +286,12 @@ def gather(
     cfg: Config, job: Job, log: Log, choose: Callable[[list], list[Path]], folders: list[Path] | None = None
 ) -> None:
     claude = Claude(cfg.anthropic_api_key, cfg.claude_model)
+    photo_claude = Claude(cfg.anthropic_api_key, cfg.photo_model)
     step_dropbox(cfg, job, log, choose, folders)
     step_place(cfg, job, log)
     step_research(claude, job, log)
     step_collect(cfg, job, log)
-    step_classify(claude, job, log)
+    step_classify(photo_claude, job, log)
     step_write(claude, job, log)
 
 

@@ -26,7 +26,9 @@ SKIP_DIRS = {
     "document fonts",
 }
 # Folders most likely to describe the project. Read these first.
-PRIORITY_DIRS = ["proposals", "_reference", "presentations", "web", "finals", "renders"]
+# Contracts and DOCUMENTS hold the scope of work, which is what the write-up needs most;
+# drawing sheets (FINALS) say little in words, so they come late.
+PRIORITY_DIRS = ["proposals", "contracts", "documents", "_reference", "presentations", "web", "finals", "renders"]
 
 STOPWORDS = {"the", "and", "of", "a", "an", "inc", "llc", "co"}
 STATE_NAMES = {
@@ -49,6 +51,7 @@ class ProjectDocs:
     folders: list[Path]
     documents: list[tuple[str, str]] = field(default_factory=list)  # (relative path, text)
     images: list[Path] = field(default_factory=list)
+    picked_images: list[Path] = field(default_factory=list)  # from hand-picked folders
 
 
 def tokens(text: str) -> list[str]:
@@ -129,15 +132,23 @@ def find_project_folders(root: Path, business: str, city: str, limit: int = 5) -
 
 
 def _skip(path: Path, root: Path) -> bool:
+    # Money paperwork is never read, whether it sits in its own folder or not.
+    if "invoice" in path.name.lower():
+        return True
     return any(part.lower() in SKIP_DIRS for part in path.relative_to(root).parts[:-1])
 
 
 def _priority(path: Path, root: Path) -> int:
-    parts = [p.lower() for p in path.relative_to(root).parts[:-1]]
+    # Leading underscores are ignored so "_FINALS" counts as "finals".
+    parts = [p.lower().lstrip("_") for p in path.relative_to(root).parts[:-1]]
     for i, name in enumerate(PRIORITY_DIRS):
-        if name in parts:
+        if name.lstrip("_") in parts:
             return i
     return len(PRIORITY_DIRS)
+
+
+def _in_renders(path: Path, root: Path) -> bool:
+    return any("render" in p.lower() for p in path.relative_to(root).parts[:-1])
 
 
 def extract_text(path: Path, max_chars: int = 15000) -> str:
@@ -181,12 +192,15 @@ def read_project(
     """Read one project folder, or several folders grouped as one project.
 
     Limits apply to the group as a whole. A file with the same name and size in two
-    folders (a copied folder) is only read once."""
+    folders (a copied folder) is only read once. Folders after the first were picked
+    by hand; their photos are listed in `picked_images`."""
     folders = [folders] if isinstance(folders, Path) else list(folders)
     result = ProjectDocs(folders=folders)
     docs, images = [], []  # (path, the folder it came from)
     seen = set()
-    for root in folders:
+    # Hand-picked folders are read first so a file they share with the main folder (for
+    # example a subfolder of it) counts as hand-picked.
+    for root in folders[1:] + folders[:1]:
         for path in root.rglob("*"):
             if not path.is_file() or _skip(path, root):
                 continue
@@ -199,7 +213,10 @@ def read_project(
             seen.add((path.name.lower(), size))
             if suffix in DOC_EXTENSIONS:
                 docs.append((path, root))
-            elif size > 150_000:
+            # Skips icons and thumbnails without opening the file (opening makes Dropbox
+            # download it). Low enough for compressed Facebook photos; images.py then drops
+            # anything under 700x450.
+            elif size > 50_000:
                 images.append((path, root))
 
     def name(path: Path, root: Path) -> str:
@@ -218,6 +235,26 @@ def read_project(
         result.documents.append((name(path, root), text))
         total += len(text)
 
-    images.sort(key=lambda d: (_priority(*d), -d[0].stat().st_size))
-    result.images = [path for path, _ in images[:max_images]]
+    # Hand-picked photos come first, shared evenly between the picked folders so one big
+    # folder of progress shots cannot crowd out a small folder of finished photos.
+    by_folder = {root: [] for root in folders[1:]}
+    for path, root in images:
+        if root in by_folder:
+            by_folder[root].append(path)
+    queues = [sorted(paths, key=lambda p: -p.stat().st_size) for paths in by_folder.values()]
+    picked = []
+    while any(queues):
+        for queue in queues:
+            if queue:
+                picked.append(queue.pop(0))
+    # Then the main folder. Posts mostly use real photos and the photo check rejects renders
+    # that were not picked by hand, so a RENDERS folder goes last; files are not always
+    # tidied, so other folder names do not rank photos, and the biggest come first.
+    main = sorted(
+        ((p, r) for p, r in images if r not in by_folder),
+        key=lambda d: (_in_renders(*d), -d[0].stat().st_size),
+    )
+    result.images = (picked + [p for p, _ in main])[:max_images]
+    picked_set = set(picked)
+    result.picked_images = [p for p in result.images if p in picked_set]
     return result

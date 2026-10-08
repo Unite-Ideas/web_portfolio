@@ -14,7 +14,7 @@ TEMPLATE = json.loads((Path(__file__).parent / "fixtures" / "pancheros_elementor
 
 
 def make_cfg(tmp_path):
-    return Config("", "claude-opus-5-5", "", "https://uniteideas.com", "u", "p", "raindesigngrou",
+    return Config("", "claude-opus-5-5", "claude-haiku-5-5", "", "https://uniteideas.com", "u", "p", "raindesigngrou",
                   "raindesigngrou.ssh.wpengine.net", 7178, tmp_path, tmp_path / "jobs")
 
 

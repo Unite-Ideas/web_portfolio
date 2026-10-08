@@ -6,3 +6,6 @@ __pycache__/
 venv/
 *.egg-info/
 .pytest_cache/
+
+# Photos dropped in for a job (e.g. from Facebook); not part of the code
+SITE IMAGES/

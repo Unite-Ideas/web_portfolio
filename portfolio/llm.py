@@ -53,6 +53,12 @@ class Claude:
         self.client = anthropic.Anthropic(api_key=api_key or None)
         self.model = model
 
+    def _fallback_args(self) -> dict:
+        """Server-side refusal fallback. Haiku has none, and must not be sent the parameter."""
+        if self.model.startswith("claude-haiku"):
+            return {}
+        return {"betas": [FALLBACK_BETA], "fallbacks": "default"}
+
     def json(
         self,
         content: list[dict] | str,
@@ -71,8 +77,7 @@ class Claude:
                 "effort": effort,
                 "format": {"type": "json_schema", "schema": schema},
             },
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
+            **self._fallback_args(),
         )
         _check(response)
         return json.loads(_text_of(response))
@@ -95,8 +100,7 @@ class Claude:
                 messages=messages,
                 tools=tools,
                 output_config={"effort": effort},
-                betas=[FALLBACK_BETA],
-                fallbacks="default",
+                **self._fallback_args(),
             ) as stream:
                 response = stream.get_final_message()
 
