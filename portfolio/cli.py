@@ -20,27 +20,42 @@ def log(message: str) -> None:
     print(message, flush=True)
 
 
-def choose_folder(matches: list[FolderMatch]) -> Path | None:
-    """Ask which Dropbox folder belongs to the job when the best match is not clear."""
+def parse_folder_choice(answer: str, matches: list[FolderMatch]) -> list[Path] | None:
+    """'2' or '1,3' or '1 3' -> those folders; '0' -> none; a pasted path -> that folder.
+    Returns None when the answer is not valid."""
+    answer = answer.strip().strip('"')
+    numbers = answer.replace(",", " ").split()
+    if numbers and all(n.isdigit() for n in numbers):
+        picks = [int(n) for n in numbers]
+        if picks == [0]:
+            return []
+        if all(1 <= n <= len(matches) for n in picks):
+            return [matches[n - 1].path for n in dict.fromkeys(picks)]
+        return None
+    if answer and Path(answer).is_dir():
+        return [Path(answer)]
+    return None
+
+
+def choose_folder(matches: list[FolderMatch]) -> list[Path]:
+    """Ask which Dropbox folder (or folders) belong to the job when the best match is not clear."""
     if not matches:
         print("No matching Dropbox project folder found.")
         answer = input("Paste the folder path, or press Enter to continue without one: ").strip().strip('"')
-        return Path(answer) if answer else None
+        return [Path(answer)] if answer else []
     best = matches[0]
     clear_winner = len(matches) == 1 or best.score - matches[1].score >= 2
     if clear_winner and best.score >= 5:
         print(f"Dropbox folder: {best.path}")
-        return best.path
-    print("Which Dropbox folder is this job?")
+        return [best.path]
+    print("Which Dropbox folder is this job? To group several, separate the numbers with commas (e.g. 1,3).")
     for i, m in enumerate(matches, start=1):
         print(f"  {i}. {m.path.parent.name}/{m.path.name}")
     print("  0. None of these")
     while True:
-        answer = input("Number (or paste a path): ").strip().strip('"')
-        if answer.isdigit() and int(answer) <= len(matches):
-            return matches[int(answer) - 1].path if int(answer) else None
-        if answer and Path(answer).is_dir():
-            return Path(answer)
+        picked = parse_folder_choice(input("Number(s) (or paste a path): "), matches)
+        if picked is not None:
+            return picked
 
 
 def find_job(cfg: Config, name: str) -> pipeline.Job:
@@ -89,7 +104,8 @@ def main(argv: list[str] | None = None) -> None:
     new = sub.add_parser("new", help="Research a job and open the review page")
     new.add_argument("business", help='Business name, e.g. "Rock N Roll Sushi"')
     new.add_argument("city", help='City and state, e.g. "Mansfield, TX"')
-    new.add_argument("--folder", type=Path, help="Dropbox project folder, if the automatic match is wrong")
+    new.add_argument("--folder", type=Path, action="append", default=[],
+                     help="Dropbox project folder, if the automatic match is wrong (repeat to group several)")
     new.add_argument("--redo", action="append", default=[], choices=["dropbox", "place", "research", "photos", "writeup"],
                      help="Run a step again even if it already finished (repeatable)")
     new.add_argument("--no-browser", action="store_true", help="Do not open the review page automatically")

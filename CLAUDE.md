@@ -40,7 +40,9 @@ First jobs: Rock N Roll Sushi, Pancheros Mexican Grill and Hurts Donut, in vario
   `bauen-title` widget's `block-content` holds theme demo text that is not displayed.
   Year / Project Name / Location are in the `bauen-list` widget as `[span] Year : [/span] 2025`.
 - Images use `bauen-single-img-video` widgets, two per row. In the template the first row is
-  full size and later rows are cropped to 1920x1080. The featured image is the page banner.
+  full size and later rows are cropped to 1920x1080. New posts apply that 1920x1080 crop to
+  every row (Sean's choice, 2026-10-08) so paired photos match in height. An odd last photo
+  spans the full width. The featured image is the page banner.
 - Windows ssh strips quotes like `'\n'` inside remote commands; avoid them.
 
 ## Dropbox

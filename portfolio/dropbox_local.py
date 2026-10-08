@@ -46,7 +46,7 @@ class FolderMatch:
 
 @dataclass
 class ProjectDocs:
-    folder: Path
+    folders: list[Path]
     documents: list[tuple[str, str]] = field(default_factory=list)  # (relative path, text)
     images: list[Path] = field(default_factory=list)
 
@@ -118,6 +118,8 @@ def find_project_folders(root: Path, business: str, city: str, limit: int = 5) -
             children = [child]
             if "archive" in child.name.lower():
                 children = [c for c in child.iterdir() if c.is_dir()]
+            elif child.name.startswith("_"):
+                continue  # brand reference and template folders such as "_REF - Rock N Roll Sushi"
             for folder in children:
                 score = score_folder(folder.name, business, city)
                 if score > 0:
@@ -173,30 +175,49 @@ def extract_text(path: Path, max_chars: int = 15000) -> str:
     return text[:max_chars]
 
 
-def read_project(folder: Path, max_docs: int = 25, max_total_chars: int = 80000, max_images: int = 40) -> ProjectDocs:
-    result = ProjectDocs(folder=folder)
-    docs, images = [], []
-    for path in folder.rglob("*"):
-        if not path.is_file() or _skip(path, folder):
-            continue
-        suffix = path.suffix.lower()
-        if suffix in DOC_EXTENSIONS:
-            docs.append(path)
-        elif suffix in IMAGE_EXTENSIONS and path.stat().st_size > 150_000:
-            images.append(path)
+def read_project(
+    folders: Path | list[Path], max_docs: int = 25, max_total_chars: int = 80000, max_images: int = 40
+) -> ProjectDocs:
+    """Read one project folder, or several folders grouped as one project.
 
-    docs.sort(key=lambda p: (_priority(p, folder), -p.stat().st_mtime))
+    Limits apply to the group as a whole. A file with the same name and size in two
+    folders (a copied folder) is only read once."""
+    folders = [folders] if isinstance(folders, Path) else list(folders)
+    result = ProjectDocs(folders=folders)
+    docs, images = [], []  # (path, the folder it came from)
+    seen = set()
+    for root in folders:
+        for path in root.rglob("*"):
+            if not path.is_file() or _skip(path, root):
+                continue
+            suffix = path.suffix.lower()
+            if suffix not in DOC_EXTENSIONS and suffix not in IMAGE_EXTENSIONS:
+                continue
+            size = path.stat().st_size
+            if (path.name.lower(), size) in seen:
+                continue
+            seen.add((path.name.lower(), size))
+            if suffix in DOC_EXTENSIONS:
+                docs.append((path, root))
+            elif size > 150_000:
+                images.append((path, root))
+
+    def name(path: Path, root: Path) -> str:
+        rel = path.relative_to(root).as_posix()
+        return f"{root.name}/{rel}" if len(folders) > 1 else rel
+
+    docs.sort(key=lambda d: (_priority(*d), -d[0].stat().st_mtime))
     total = 0
-    for path in docs[:max_docs]:
+    for path, root in docs[:max_docs]:
         text = extract_text(path)
         if not text or text.startswith("[could not read"):
             continue
         text = text[: max(0, max_total_chars - total)]
         if not text:
             break
-        result.documents.append((path.relative_to(folder).as_posix(), text))
+        result.documents.append((name(path, root), text))
         total += len(text)
 
-    images.sort(key=lambda p: (_priority(p, folder), -p.stat().st_size))
-    result.images = images[:max_images]
+    images.sort(key=lambda d: (_priority(*d), -d[0].stat().st_size))
+    result.images = [path for path, _ in images[:max_images]]
     return result

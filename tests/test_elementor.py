@@ -53,12 +53,14 @@ def test_images_in_order_two_per_row():
     assert image_urls(layout) == [f"https://uniteideas.com/img{i}.jpg" for i in range(6)]
     rows = image_rows(layout)
     assert len(rows) == 3
-    # First row copies the template's first row (full size images), later rows
-    # copy the second row (1920x1080 crop), like the Pancheros post.
+    # Every row, the first one included, uses the template's 1920x1080 crop so the
+    # two photos in a row are always the same height.
+    for row in rows:
+        for w in walk([row]):
+            if w.get("widgetType") == IMAGE_WIDGET:
+                assert w["settings"]["image_size"] == "custom"
+                assert w["settings"]["image_custom_dimension"] == {"width": "1920", "height": "1080"}
     first = [w for w in walk([rows[0]]) if w.get("widgetType") == IMAGE_WIDGET]
-    later = [w for w in walk([rows[2]]) if w.get("widgetType") == IMAGE_WIDGET]
-    assert "image_size" not in first[0]["settings"]
-    assert later[0]["settings"]["image_custom_dimension"] == {"width": "1920", "height": "1080"}
     widget = first[0]["settings"]["image"]
     assert widget == {"url": "https://uniteideas.com/img0.jpg", "id": 100, "alt": "Alt 0", "source": "library", "size": ""}
 
@@ -70,6 +72,8 @@ def test_odd_count_last_image_full_width():
     last_columns = [e for e in rows[1]["elements"] if e["elType"] == "column"]
     assert len(last_columns) == 1
     assert last_columns[0]["settings"]["_column_size"] == 100
+    widget = next(w for w in walk([rows[1]]) if w.get("widgetType") == IMAGE_WIDGET)
+    assert widget["settings"]["image_custom_dimension"] == {"width": "1920", "height": "1080"}
 
 
 def test_ids_unique_and_template_untouched():

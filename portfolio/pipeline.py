@@ -70,22 +70,27 @@ class Job:
 # ---------------------------------------------------------------- gather
 
 
-def step_dropbox(cfg: Config, job: Job, log: Log, choose: Callable[[list], Path | None], folder: Path | None) -> None:
+def step_dropbox(
+    cfg: Config, job: Job, log: Log, choose: Callable[[list], list[Path]], folders: list[Path] | None
+) -> None:
     if "dropbox" in job.data:
         return
-    if folder is None:
+    if not folders:
         matches = dropbox_local.find_project_folders(cfg.dropbox_clients_dir, job.data["business"], job.data["city"])
-        folder = choose(matches)
-    if folder is None:
+        folders = choose(matches)
+    if not folders:
         log("No Dropbox project folder selected; continuing without project documents.")
-        job.data["dropbox"] = {"folder": "", "year": None, "documents": [], "images": []}
+        job.data["dropbox"] = {"folder": "", "folders": [], "year": None, "documents": [], "images": []}
         job.save()
         return
-    log(f"Reading Dropbox folder: {folder}")
-    docs = dropbox_local.read_project(folder)
-    year = dropbox_local.folder_year(folder.name, folder.parent.name)
+    for folder in folders:
+        log(f"Reading Dropbox folder: {folder}")
+    docs = dropbox_local.read_project(folders)
+    # The first folder chosen is the main one; its date gives the project year.
+    year = dropbox_local.folder_year(folders[0].name, folders[0].parent.name)
     job.data["dropbox"] = {
-        "folder": str(folder),
+        "folder": "; ".join(str(f) for f in folders),
+        "folders": [str(f) for f in folders],
         "year": year,
         "documents": [{"name": n, "text": t} for n, t in docs.documents],
         "images": [str(p) for p in docs.images],
@@ -254,9 +259,11 @@ def step_write(claude: Claude, job: Job, log: Log) -> None:
     job.save()
 
 
-def gather(cfg: Config, job: Job, log: Log, choose: Callable[[list], Path | None], folder: Path | None = None) -> None:
+def gather(
+    cfg: Config, job: Job, log: Log, choose: Callable[[list], list[Path]], folders: list[Path] | None = None
+) -> None:
     claude = Claude(cfg.anthropic_api_key, cfg.claude_model)
-    step_dropbox(cfg, job, log, choose, folder)
+    step_dropbox(cfg, job, log, choose, folders)
     step_place(cfg, job, log)
     step_research(claude, job, log)
     step_collect(cfg, job, log)

@@ -12,7 +12,9 @@ The template (Pancheros by default) looks like this:
 
 We keep every setting from the template and only swap the text, the list values
 and the images. The first image row copies the template's first row and every
-later row copies the template's second row, so spacing and cropping match.
+later row copies the template's second row, so spacing matches. Every image,
+first row included, gets the later rows' 1920x1080 crop so paired photos are
+always the same height.
 """
 
 from __future__ import annotations
@@ -90,8 +92,23 @@ def _find_rows(top_section: dict) -> tuple[dict, dict, list[dict]]:
     raise TemplateError("Template layout has no title section followed by image rows.")
 
 
-def _set_image(widget: dict, image: LayoutImage, index: int) -> None:
+DEFAULT_CROP = {"image_size": "custom", "image_custom_dimension": {"width": "1920", "height": "1080"}}
+
+
+def _crop_settings(template_rows: list[dict]) -> dict:
+    """The crop the template uses on its later rows (1920x1080 in Pancheros)."""
+    for row in template_rows:
+        for widget in _widgets(row, IMAGE_WIDGET):
+            settings = widget.get("settings", {})
+            if settings.get("image_size") == "custom" and settings.get("image_custom_dimension"):
+                return {k: copy.deepcopy(settings[k]) for k in ("image_size", "image_custom_dimension")}
+    return copy.deepcopy(DEFAULT_CROP)
+
+
+def _set_image(widget: dict, image: LayoutImage, index: int, crop: dict) -> None:
     settings = widget.setdefault("settings", {})
+    # Every photo gets the same crop so the two photos in a row are the same height.
+    settings.update(copy.deepcopy(crop))
     settings["image"] = {
         "url": image.url,
         "id": image.id,
@@ -148,6 +165,7 @@ def build_layout(template: list[dict], content: LayoutContent) -> list[dict]:
     # Image rows: two images per row. An odd last image gets a full-width row.
     first_row_template = template_rows[0]
     later_row_template = template_rows[1] if len(template_rows) > 1 else template_rows[0]
+    crop = _crop_settings(template_rows)
     new_rows = []
     pairs = [content.images[i : i + 2] for i in range(0, len(content.images), 2)]
     image_index = 0
@@ -164,7 +182,7 @@ def build_layout(template: list[dict], content: LayoutContent) -> list[dict]:
             if not widgets:
                 raise TemplateError("Template image row has a column without an image widget.")
             image_index += 1
-            _set_image(widgets[0], image, image_index)
+            _set_image(widgets[0], image, image_index, crop)
         _reassign_ids(row, used)
         new_rows.append(row)
 
