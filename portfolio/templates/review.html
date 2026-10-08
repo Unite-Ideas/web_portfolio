@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review: {{ draft.title }}</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --ink:#1d1d1b; --muted:#6b6a66; --line:#dddbd5; --accent:#c8102e; --ok:#1b7a3a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:16px 24px; background:var(--ink); color:#fff; display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:18px; }
+  header .sub { color:#bbb; font-size:13px; }
+  main { max-width:1280px; margin:0 auto; padding:24px; }
+  .msg { padding:10px 14px; background:#fff4d6; border:1px solid #e9cf7a; border-radius:6px; margin-bottom:16px; }
+  .done { background:#e3f4e8; border-color:#9fd3b0; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:20px; margin-bottom:20px; }
+  h2 { margin:0 0 12px; font-size:16px; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
+  input[type=text], textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:6px; font:inherit; }
+  textarea { min-height:160px; }
+  .notes li { color:#8a4b00; }
+  .photos { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:14px; }
+  .photo { border:2px solid var(--line); border-radius:8px; overflow:hidden; background:#fafafa; display:flex; flex-direction:column; }
+  .photo.on { border-color:var(--ok); }
+  .photo img { width:100%; aspect-ratio:3/2; object-fit:cover; display:block; background:#ddd; }
+  .photo .body { padding:10px; font-size:13px; display:flex; flex-direction:column; gap:6px; }
+  .tags span { display:inline-block; font-size:11px; padding:1px 6px; border-radius:10px; background:#eee; margin-right:4px; }
+  .tags .good { background:#e3f4e8; color:var(--ok); }
+  .tags .bad { background:#fbe3e6; color:var(--accent); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .row input[type=number] { width:60px; padding:4px; }
+  .src { color:var(--muted); word-break:break-all; }
+  details summary { cursor:pointer; font-weight:600; margin:8px 0; }
+  .actions { position:sticky; bottom:0; background:var(--bg); padding:12px 0; display:flex; gap:12px; border-top:1px solid var(--line); }
+  button { padding:10px 18px; font:inherit; border-radius:6px; border:1px solid var(--ink); background:#fff; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .facts li { margin-bottom:4px; }
+  .facts a, .src a { color:inherit; }
+  @media (max-width: 600px) { main { padding:16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{ job.business }}, {{ job.city }}</h1>
+  <span class="sub">Dropbox: {{ job.dropbox.folder or "none" }}</span>
+</header>
+<main>
+  {% if message %}<div class="msg {% if message.startswith('Draft created') %}done{% endif %}">{{ message }}</div>{% endif %}
+  {% for p in published %}
+    <div class="msg done">Draft {{ p.post_id }} created {{ p.published_at }}:
+      <a href="{{ p.edit_url }}" target="_blank">edit in Elementor</a> |
+      <a href="{{ p.preview_url }}" target="_blank">preview</a></div>
+  {% endfor %}
+
+  <form method="post" action="/save">
+  <section>
+    <h2>Post details</h2>
+    <div class="grid2">
+      <div><label>Title</label><input type="text" name="title" value="{{ draft.title }}"></div>
+      <div><label>URL slug</label><input type="text" name="slug" value="{{ draft.slug }}"></div>
+      <div><label>Project name</label><input type="text" name="project_name" value="{{ draft.project_name }}"></div>
+      <div><label>Location</label><input type="text" name="location" value="{{ draft.location }}"></div>
+      <div><label>Year</label><input type="text" name="year" value="{{ draft.year }}"></div>
+      <div><label>Categories</label>
+        <div class="row">
+          {% for slug, name in [("architecture","Architecture"),("qsr","QSR"),("visualization","Visualization")] %}
+            <label style="text-transform:none;font-size:14px;color:var(--ink)"><input type="checkbox" name="categories" value="{{ slug }}" {% if slug in draft.categories %}checked{% endif %}> {{ name }}</label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px"><label>Write-up (blank line between paragraphs)</label>
+      <textarea name="writeup">{{ writeup }}</textarea></div>
+    <div style="margin-top:12px"><label>Search summary (excerpt)</label>
+      <input type="text" name="excerpt" value="{{ draft.excerpt }}"></div>
+    {% if draft.review_notes %}
+      <p><strong>Check before publishing:</strong></p>
+      <ul class="notes">{% for n in draft.review_notes %}<li>{{ n }}</li>{% endfor %}</ul>
+    {% endif %}
+    <details><summary>Research facts and sources</summary>
+      <ul class="facts">
+        {% for f in job.research.facts %}<li>{{ f.fact }} <a href="{{ f.source_url }}" target="_blank">source</a></li>{% endfor %}
+        {% for o in job.research.organizations %}<li>{{ o.name }}: {{ o.role }}</li>{% endfor %}
+      </ul>
+    </details>
+  </section>
+
+  {% set building = candidates | selectattr("score") | list %}
+  {% set other = candidates | rejectattr("score") | list %}
+  <section>
+    <h2>Photos ({{ building|length }} building photos found)</h2>
+    <p class="src">Tick the photos to use. The order numbers set their position; two photos per row. Pick one as the banner.
+      Photos from Google and news sites belong to their photographers, so check you can use them.</p>
+    {% macro card(c) %}
+      <div class="photo {% if c.key in order %}on{% endif %}">
+        <a href="/files/{{ c.file }}" target="_blank"><img src="/files/{{ c.thumb }}" loading="lazy" alt=""></a>
+        <div class="body">
+          <div class="row">
+            <label style="text-transform:none;font-size:14px;color:var(--ink)"><input type="checkbox" name="use_{{ c.key }}" value="1" {% if c.key in order %}checked{% endif %}> Use</label>
+            <input type="number" step="1" name="order_{{ c.key }}" value="{{ order.get(c.key, '') }}" title="Order">
+            <label style="text-transform:none;font-size:14px;color:var(--ink)"><input type="radio" name="banner" value="{{ c.key }}" {% if c.key == banner %}checked{% endif %}> Banner</label>
+          </div>
+          <div class="tags">
+            <span class="{% if c.score %}good{% else %}bad{% endif %}">{{ c.review.kind or "unchecked" }}</span>
+            {% if c.review.people %}<span>people: {{ c.review.people }}</span>{% endif %}
+            {% if c.review.quality %}<span>quality {{ c.review.quality }}/5</span>{% endif %}
+            {% if c.review.matches_business %}<span>match: {{ c.review.matches_business }}</span>{% endif %}
+            <span>{{ c.width }}x{{ c.height }}</span>
+          </div>
+          <div>{{ c.review.description }}</div>
+          <input type="text" name="alt_{{ c.key }}" value="{{ alts.get(c.key) or c.review.alt_text }}" placeholder="Alt text">
+          <div class="src">{{ c.source }}{% if c.credit %}, photo by {{ c.credit }}{% endif %}
+            {% if c.page_url %}: <a href="{{ c.page_url }}" target="_blank">{{ c.page_url[:70] }}</a>{% endif %}</div>
+        </div>
+      </div>
+    {% endmacro %}
+    <div class="photos">{% for c in building %}{{ card(c) }}{% endfor %}</div>
+    <details><summary>Filtered out ({{ other|length }}): food, marketing, logos and other photos</summary>
+      <div class="photos">{% for c in other %}{{ card(c) }}{% endfor %}</div>
+    </details>
+  </section>
+
+  <div class="actions">
+    <button type="submit" name="action" value="save">Save</button>
+    <button type="submit" name="action" value="publish" class="primary"
+      onclick="return confirm('Upload the selected photos and create a DRAFT portfolio post?')">Create WordPress draft</button>
+  </div>
+  </form>
+</main>
+</body>
+</html>
