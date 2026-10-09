@@ -1,0 +1,331 @@
+{% extends "base.html" %}
+{% block title %}Portfolio Studio{% endblock %}
+{% block style %}
+.jobrow{display:flex;align-items:center;gap:16px;padding:12px;margin:0 -12px;border-radius:14px;text-decoration:none;color:var(--ink)}
+.jobrow:hover{background:rgba(255,255,255,.05);color:var(--ink)}
+.thumb{width:64px;height:48px;flex:none;object-fit:cover;border-radius:10px}
+.mono{width:64px;height:48px;flex:none;border-radius:10px;border:1px solid rgba(201,174,138,.5);display:flex;align-items:center;justify-content:center;font-family:Oswald,sans-serif;letter-spacing:.16em;font-size:14px;color:var(--gold)}
+.jt{font-family:Oswald,sans-serif;font-size:16px;letter-spacing:.12em;text-transform:uppercase}
+.stat{font-family:Oswald,sans-serif;font-weight:300;font-size:56px;line-height:1}
+.mosaic{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.mosaic img{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:12px;display:block}
+.check{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:30px}
+.picked{display:inline-flex;align-items:center;gap:10px;padding:6px 6px 6px 14px;border-radius:999px;background:rgba(201,174,138,.12);border:1px solid rgba(201,174,138,.45);font-size:14px;color:#F2E3CC}
+.picked .role{font-family:Oswald,sans-serif;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.xbtn{width:32px;height:32px;border-radius:999px;border:0;background:rgba(255,255,255,.08);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.modal{position:fixed;inset:0;z-index:20;background:rgba(10,6,24,.6);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:none;justify-content:center;align-items:flex-start;padding:60px 16px 24px;overflow-y:auto}
+.modal.open{display:flex}
+.dialog{width:100%;max-width:840px;padding:28px 30px;display:flex;flex-direction:column;gap:16px;background:rgba(22,16,40,.86)}
+.frow{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 10px;border-radius:10px}
+.frow.on{background:rgba(201,174,138,.12)}
+.frow.dim{opacity:.55}
+.frow input[type=checkbox]{width:20px;height:20px;flex:none;accent-color:#C9AE8A}
+.frow .spacer{width:20px;flex:none}
+.fname{flex:1;min-width:0;min-height:44px;padding:0;text-align:left;background:none;border:0;color:var(--ink);font:15px "Didact Gothic",sans-serif;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow-wrap:anywhere}
+button.fname{cursor:pointer}
+button.fname:hover span:first-child{text-decoration:underline;text-decoration-color:rgba(201,174,138,.6)}
+.fwhere{font-size:13px;color:var(--muted)}
+.flist{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-right:4px}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:2px}
+.crumb{background:none;border:0;padding:6px 4px;min-height:36px;color:#D9C3A3;font:14px "Didact Gothic",sans-serif;cursor:pointer}
+.crumb:hover{text-decoration:underline}
+.crumb.here{color:var(--ink)}
+{% endblock %}
+{% block content %}
+<div style="display:flex;flex-direction:column;gap:12px;padding-top:8px">
+  <p class="eyebrow">{{ today }}</p>
+  <h1 class="display" style="font-size:54px">Draft the next project</h1>
+  <p class="lede">Give it a business and a city. It reads the Dropbox folder, finds photos of the building and writes the post. Nothing goes live until you publish it in WordPress.</p>
+</div>
+
+{% if error %}<div class="msg bad" role="alert">{{ error }}</div>{% endif %}
+
+<div class="bento">
+  <section class="glass pad s7" aria-labelledby="new-title" style="display:flex;flex-direction:column;gap:22px">
+    <h2 id="new-title" class="display" style="font-size:22px">New project</h2>
+    <form id="startForm" method="post" action="{{ url_for('start') }}" style="display:flex;flex-direction:column;gap:22px">
+      <div class="two">
+        <div class="field"><label class="label" for="business">Business</label>
+          <input class="input" id="business" name="business" type="text" placeholder="Rock N Roll Sushi" value="{{ form.get('business', '') }}" required autocomplete="off"></div>
+        <div class="field"><label class="label" for="city">City</label>
+          <input class="input" id="city" name="city" type="text" placeholder="Mansfield, TX" value="{{ form.get('city', '') }}" required autocomplete="off"></div>
+      </div>
+      <div class="field">
+        <span class="label">Dropbox folders</span>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">
+          <button type="button" class="btn on" id="autoBtn">Find it for me</button>
+          <button type="button" class="btn" id="pickBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            Pick folders</button>
+          <span class="small muted" id="folderHint">The tool finds the job folder from the name and city.</span>
+        </div>
+        <div id="pickedOnForm" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        <div id="hiddenFolders"></div>
+      </div>
+      <div class="field"><label class="label" for="notes">Notes for research and write-up</label>
+        <textarea class="input" id="notes" name="notes" rows="3" placeholder="Other names it goes by, what made it notable, how to spell the name in the post">{{ form.get('notes', '') }}</textarea></div>
+      <details style="border-top:1px solid rgba(255,255,255,.1);padding-top:16px">
+        <summary class="label" style="cursor:pointer;min-height:28px">More options</summary>
+        <div class="two" style="padding-top:16px">
+          <div class="field"><label class="label" for="title">Custom title</label>
+            <input class="input" id="title" name="title" type="text" placeholder="Business - City" value="{{ form.get('title', '') }}"></div>
+          <div class="field"><label class="label" for="max_photos">Dropbox photos to check</label>
+            <input class="input" id="max_photos" name="max_photos" type="number" min="10" max="300" placeholder="40" value="{{ form.get('max_photos', '') }}"></div>
+        </div>
+        <label style="display:flex;align-items:center;gap:12px;margin-top:16px;min-height:44px;cursor:pointer">
+          <input type="checkbox" name="start_over" value="1" style="width:20px;height:20px;accent-color:#C9AE8A">
+          <span>Start over if this project was run before <span class="muted small">(runs every step again)</span></span>
+        </label>
+      </details>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px">
+        <span class="small muted">About 5 to 10 minutes. You can leave this page open.</span>
+        <button class="btn gold" type="submit" id="startBtn">Start project
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+    </form>
+  </section>
+
+  <div class="s5" style="display:flex;flex-direction:column;gap:20px">
+    <div class="two" style="gap:20px">
+      <div class="glass" style="padding:24px;display:flex;flex-direction:column;gap:6px">
+        <span class="stat">{{ drafts }}</span><span class="label">Drafts created</span></div>
+      <div class="glass" style="padding:24px;display:flex;flex-direction:column;gap:6px">
+        <span class="stat">{{ last.kept if last else 0 }}</span><span class="label">Building photos, last job</span></div>
+    </div>
+    <section class="glass" aria-labelledby="sys-title" style="padding:24px 26px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <h2 id="sys-title" class="label" style="color:var(--ink)">Connections</h2>
+        <a class="small" href="{{ url_for('settings_page') }}">Settings</a>
+      </div>
+      <div id="checks" aria-live="polite">
+        {% for c in checks.results %}
+          <div class="check"><span>{{ c.name }}</span>
+            {% if c.ok %}<span class="small" style="color:var(--ok)">Ready</span>
+            {% elif c.name == 'Google Places' %}<span class="small" style="color:var(--warn)">Optional</span>
+            {% else %}<span class="small" style="color:var(--bad)">Problem</span>{% endif %}</div>
+        {% else %}
+          <p class="small muted" style="margin:0">Checking Dropbox, WordPress, SSH and Claude...</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <section class="glass pad s7" aria-labelledby="recent-title" style="display:flex;flex-direction:column;gap:6px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:8px">
+      <h2 id="recent-title" class="display" style="font-size:20px">Recent work</h2>
+      <a class="small" href="{{ url_for('jobs_page') }}">All jobs</a>
+    </div>
+    {% for j in jobs %}
+      <a class="jobrow" href="{{ j.url }}">
+        {% if j.thumb %}<img class="thumb" src="{{ j.thumb }}" alt="">{% else %}<span class="mono">{{ j.monogram }}</span>{% endif %}
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+          <span class="jt">{{ j.title }}</span>
+          <span class="small muted">{{ j.city }}</span>
+        </span>
+        <span class="tag {{ j.tone }}">{{ j.status }}</span>
+      </a>
+    {% else %}
+      <p class="muted" style="margin:0">No projects yet. Start one above.</p>
+    {% endfor %}
+  </section>
+
+  <section class="glass s5" aria-labelledby="last-title" style="padding:24px;display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px">
+      <h2 id="last-title" class="label" style="color:var(--ink)">Last job</h2>
+      {% if last %}<a class="small" href="{{ last.url }}">{{ last.title }}</a>{% endif %}
+    </div>
+    {% if last %}
+      <div class="mosaic">{% for t in last.thumbs %}<img src="{{ t }}" alt="">{% endfor %}</div>
+      <p class="small muted" style="margin:0">{{ last.checked }} photos checked, {{ last.kept }} kept{% if last.kinds %}: {{ last.kinds }}{% endif %}.</p>
+    {% else %}
+      <p class="small muted" style="margin:0">Photos from your latest job show here.</p>
+    {% endif %}
+  </section>
+</div>
+
+<div class="modal" id="picker" role="dialog" aria-modal="true" aria-labelledby="picker-title">
+  <div class="glass dialog">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <p class="eyebrow">Dropbox, _SERVICE-CLIENTS</p>
+        <h2 id="picker-title" class="display" style="font-size:24px">Pick folders</h2>
+      </div>
+      <button type="button" class="xbtn" id="pickerClose" aria-label="Close" style="width:44px;height:44px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="field"><label class="label" for="fsearch">Search every year</label>
+      <input class="input" id="fsearch" type="search" placeholder="Try RNR, Hurts, Pancheros, Springfield, 2024" autocomplete="off"></div>
+    <div id="matchBox" style="display:flex;flex-direction:column;gap:4px"></div>
+    <div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px">
+      <div id="browseBar" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+        <button type="button" class="btn" id="upBtn" style="min-height:36px;padding:0 14px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Up</button>
+        <div class="crumbs" id="crumbs"></div>
+      </div>
+      <span class="label" id="searchLabel" style="color:var(--gold);display:none"></span>
+      <div class="flist" id="flist" aria-live="polite"></div>
+    </div>
+    <div id="pickedRow" style="display:none;flex-wrap:wrap;align-items:center;gap:8px;border-top:1px solid rgba(255,255,255,.08);padding-top:14px"></div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid rgba(255,255,255,.08);padding-top:16px">
+      <span class="small muted" id="pickSummary" style="max-width:420px"></span>
+      <div style="display:flex;gap:12px">
+        <button type="button" class="btn" id="pickerCancel">Cancel</button>
+        <button type="button" class="btn gold" id="pickerUse">Use these folders</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const folderIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke-width="1.6" aria-hidden="true" style="flex:none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+  const chevron = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8F8A82" stroke-width="2" aria-hidden="true" style="flex:none"><path d="M9 6l6 6-6 6"/></svg>';
+  let used = [];       // folders on the form: [{path, name}]
+  let picked = [];     // folders ticked in the picker
+  let path = '';       // folder being browsed, below _SERVICE-CLIENTS
+  let searchTimer = null;
+
+  const role = (p) => { const i = picked.findIndex((x) => x.path === p); return i < 0 ? '' : i === 0 ? 'Main folder' : 'Hand-picked'; };
+  const isPicked = (p) => picked.some((x) => x.path === p);
+  function toggle(item) {
+    if (isPicked(item.path)) picked = picked.filter((x) => x.path !== item.path);
+    else picked.push({ path: item.path, name: item.name });
+    refresh();
+  }
+
+  function row(item) {
+    const div = document.createElement('div');
+    div.className = 'frow' + (isPicked(item.path) ? ' on' : '') + (item.dim || item.locked ? ' dim' : '');
+    if (item.pickable || item.locked) {
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = isPicked(item.path);
+      cb.disabled = !!item.locked;
+      cb.setAttribute('aria-label', (cb.checked ? 'Unpick ' : 'Pick ') + item.name);
+      cb.addEventListener('change', () => toggle(item));
+      div.appendChild(cb);
+    } else {
+      const s = document.createElement('span'); s.className = 'spacer'; div.appendChild(s);
+    }
+    const icon = document.createElement('span');
+    icon.innerHTML = folderIcon;
+    icon.firstChild.setAttribute('stroke', item.archive || !item.pickable ? '#C9AE8A' : '#B3ADA4');
+    div.appendChild(icon.firstChild);
+    const name = document.createElement(item.openable ? 'button' : 'span');
+    name.className = 'fname';
+    if (item.openable) { name.type = 'button'; name.addEventListener('click', () => browse(item.path)); }
+    const t = document.createElement('span'); t.textContent = item.name; name.appendChild(t);
+    if (item.where) { const w = document.createElement('span'); w.className = 'fwhere'; w.textContent = item.where; name.appendChild(w); }
+    div.appendChild(name);
+    const tag = document.createElement('span');
+    tag.className = 'label';
+    tag.style.fontSize = '11px';
+    tag.style.color = item.locked ? '#EBC587' : '#C9AE8A';
+    tag.textContent = item.locked ? 'Never read' : role(item.path) || (item.archive ? 'Archive' : '');
+    div.appendChild(tag);
+    if (item.openable) { const c = document.createElement('span'); c.innerHTML = chevron; div.appendChild(c.firstChild); }
+    return div;
+  }
+
+  let lastItems = [], lastMatches = [];
+  function render(items) { lastItems = items; const list = $('flist'); list.replaceChildren(...items.map(row));
+    if (!items.length) { const p = document.createElement('p'); p.className = 'small muted'; p.style.margin = '8px 10px';
+      p.textContent = $('fsearch').value.trim() ? 'Nothing matches. Try fewer words, a code like RNR, or a year.' : 'This folder has no subfolders.'; list.appendChild(p); } }
+  function renderMatches(items) {
+    lastMatches = items;
+    const box = $('matchBox'); box.replaceChildren();
+    const biz = $('business').value.trim(), city = $('city').value.trim();
+    const head = document.createElement('span'); head.className = 'label'; head.style.color = '#C9AE8A';
+    if (items.length) { head.textContent = 'Best matches for ' + [biz, city].filter(Boolean).join(', '); box.appendChild(head); items.forEach((i) => box.appendChild(row(i))); }
+    else { const p = document.createElement('p'); p.className = 'small muted'; p.style.margin = '0';
+      p.textContent = biz ? 'No folder names look like ' + biz + '. Search or browse below.' : 'Type a business and city on the form and the best matches show here. Or search and browse below.'; box.appendChild(p); }
+  }
+  function renderCrumbs() {
+    const c = $('crumbs'); c.replaceChildren();
+    const parts = path ? path.split('/') : [];
+    const add = (label, target, here) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'crumb' + (here ? ' here' : ''); b.textContent = label; b.addEventListener('click', () => browse(target)); c.appendChild(b); };
+    add('_SERVICE-CLIENTS', '', parts.length === 0);
+    parts.forEach((p, i) => { const s = document.createElement('span'); s.innerHTML = chevron; c.appendChild(s.firstChild); add(p, parts.slice(0, i + 1).join('/'), i === parts.length - 1); });
+    $('upBtn').disabled = parts.length === 0;
+  }
+  function refresh() {
+    render(lastItems); renderMatches(lastMatches);
+    const pr = $('pickedRow'); pr.replaceChildren();
+    pr.style.display = picked.length ? 'flex' : 'none';
+    if (picked.length) {
+      const l = document.createElement('span'); l.className = 'label'; l.textContent = 'Picked'; pr.appendChild(l);
+      picked.forEach((p, i) => pr.appendChild(chip(p, i, () => { picked = picked.filter((x) => x.path !== p.path); refresh(); })));
+    }
+    const n = picked.length;
+    $('pickSummary').textContent = n === 0 ? 'Nothing picked yet. Tick folders anywhere: in the matches, while browsing or in search results.'
+      : n === 1 ? '1 folder. Its documents and photos are read as the project.'
+      : n + ' folders. The first is the main job folder; photos from the others go first.';
+  }
+  function chip(p, i, onRemove) {
+    const s = document.createElement('span'); s.className = 'picked';
+    const t = document.createElement('span'); t.textContent = p.name; s.appendChild(t);
+    const r = document.createElement('span'); r.className = 'role'; r.textContent = i === 0 ? 'Main' : 'Hand-picked'; s.appendChild(r);
+    if (onRemove) { const b = document.createElement('button'); b.type = 'button'; b.className = 'xbtn'; b.setAttribute('aria-label', 'Remove ' + p.name);
+      b.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      b.addEventListener('click', onRemove); s.appendChild(b); }
+    return s;
+  }
+  async function getJSON(url) { const r = await fetch(url); if (!r.ok) return { items: [] }; return r.json(); }
+  async function browse(p) {
+    path = p; $('fsearch').value = ''; $('searchLabel').style.display = 'none'; $('browseBar').style.display = 'flex';
+    renderCrumbs(); const data = await getJSON('/api/folders?path=' + encodeURIComponent(p)); render(data.items);
+  }
+  async function search(q) {
+    if (!q.trim()) { browse(path); return; }
+    $('browseBar').style.display = 'none';
+    const data = await getJSON('/api/folders/search?q=' + encodeURIComponent(q));
+    $('searchLabel').style.display = 'block'; $('searchLabel').textContent = 'Search results for "' + q.trim() + '" (' + data.items.length + ')';
+    render(data.items);
+  }
+  async function openPicker() {
+    picked = used.slice();
+    $('picker').classList.add('open'); document.body.style.overflow = 'hidden';
+    const biz = $('business').value.trim(), city = $('city').value.trim();
+    renderMatches([]);
+    if (biz) { const m = await getJSON('/api/folders/match?business=' + encodeURIComponent(biz) + '&city=' + encodeURIComponent(city)); renderMatches(m.items); }
+    await browse(path); refresh(); $('fsearch').focus();
+  }
+  function closePicker() { $('picker').classList.remove('open'); document.body.style.overflow = ''; $('pickBtn').focus(); }
+  function applyUsed() {
+    const form = $('pickedOnForm'); form.replaceChildren(...used.map((p, i) => chip(p, i, null)));
+    const hidden = $('hiddenFolders'); hidden.replaceChildren(...used.map((p) => { const h = document.createElement('input'); h.type = 'hidden'; h.name = 'folders'; h.value = p.path; return h; }));
+    $('autoBtn').classList.toggle('on', used.length === 0); $('pickBtn').classList.toggle('on', used.length > 0);
+    $('folderHint').textContent = used.length ? (used.length === 1 ? 'Using the folder below.' : 'Using these ' + used.length + ' folders as one project.') : 'The tool finds the job folder from the name and city.';
+  }
+
+  $('pickBtn').addEventListener('click', openPicker);
+  $('autoBtn').addEventListener('click', () => { used = []; applyUsed(); });
+  $('pickerClose').addEventListener('click', closePicker);
+  $('pickerCancel').addEventListener('click', closePicker);
+  $('pickerUse').addEventListener('click', () => { used = picked.slice(); applyUsed(); closePicker(); });
+  $('upBtn').addEventListener('click', () => browse(path.split('/').slice(0, -1).join('/')));
+  $('fsearch').addEventListener('input', (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => search(e.target.value), 250); });
+  $('picker').addEventListener('keydown', (e) => { if (e.key === 'Escape') closePicker(); });
+  $('picker').addEventListener('click', (e) => { if (e.target === $('picker')) closePicker(); });
+  $('startForm').addEventListener('submit', () => { const b = $('startBtn'); b.disabled = true; b.firstChild.textContent = 'Starting '; });
+
+  // Connection lights fill in once the background check finishes.
+  async function pollChecks() {
+    const data = await getJSON('/api/checks');
+    if (data.running || !data.results || !data.results.length) { setTimeout(pollChecks, 2500); return; }
+    const box = $('checks'); box.replaceChildren(...data.results.map((c) => {
+      const d = document.createElement('div'); d.className = 'check';
+      const n = document.createElement('span'); n.textContent = c.name; d.appendChild(n);
+      const s = document.createElement('span'); s.className = 'small';
+      if (c.ok) { s.textContent = 'Ready'; s.style.color = '#8FD1A6'; }
+      else if (c.name === 'Google Places') { s.textContent = 'Optional'; s.style.color = '#EBC587'; }
+      else { s.textContent = 'Problem'; s.style.color = '#F2A097'; }
+      d.appendChild(s); return d; }));
+  }
+  {% if not checks.results %}pollChecks();{% endif %}
+  {% if open_picker %}openPicker();{% endif %}
+})();
+</script>
+{% endblock %}

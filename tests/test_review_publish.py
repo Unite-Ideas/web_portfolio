@@ -8,7 +8,7 @@ import pytest
 from portfolio import pipeline, wordpress
 from portfolio.config import Config
 from portfolio.images import Candidate
-from portfolio.review import create_app
+from portfolio.web import create_app
 
 TEMPLATE = json.loads((Path(__file__).parent / "fixtures" / "pancheros_elementor.json").read_text())
 
@@ -47,13 +47,15 @@ def make_job(tmp_path):
 def test_review_page_and_save(tmp_path):
     cfg = make_cfg(tmp_path)
     job = make_job(tmp_path)
-    client = create_app(cfg, job).test_client()
-    page = client.get("/").get_data(as_text=True)
+    client = create_app(cfg, check_on_start=False).test_client()
+    slug = job.data["slug"]
+    page = client.get(f"/jobs/{slug}/review").get_data(as_text=True)
     assert "Rock N Roll Sushi Mansfield" in page and "Check the opening date." in page
-    assert client.get("/files/thumbs/k0.jpg").status_code == 200
-    assert client.get("/files/job.json").status_code == 404
+    assert client.get(f"/jobs/{slug}/files/thumbs/k0.jpg").status_code == 200
+    assert client.get(f"/jobs/{slug}/files/job.json").status_code == 404
+    assert client.get("/jobs/..%2F..%2Fsecret/review").status_code == 404
 
-    resp = client.post("/save", data={
+    resp = client.post(f"/jobs/{slug}/save", data={
         "action": "save", "title": "RNR Mansfield", "slug": "", "project_name": "RNR QSR",
         "location": "Mansfield, TX", "year": "2025", "excerpt": "x", "writeup": "Para one.\r\n\r\nPara two.",
         "categories": ["architecture", "qsr"], "use_k0": "1", "order_k0": "2", "use_k1": "1", "order_k1": "1",
@@ -142,3 +144,26 @@ def test_publish_php_runs_against_stub(tmp_path):
     assert ["new_term", "QSR"] in log
     assert ["terms", [116, 200], "portfolio_category"] in log
     assert sum(1 for entry in log if entry[0] == "update") == 2
+
+
+def test_ssh_retries_only_when_shell_not_created(tmp_path, monkeypatch):
+    cfg = make_cfg(tmp_path)
+    monkeypatch.setattr(wordpress.time, "sleep", lambda s: None)
+    calls = []
+
+    def fake_run(answers):
+        def run(*args, **kwargs):
+            code, err = answers[len(calls)]
+            calls.append(args)
+            return subprocess.CompletedProcess(args, code, stdout="ok\n" if code == 0 else "", stderr=err)
+        return run
+
+    monkeypatch.setattr(wordpress.subprocess, "run", fake_run([(255, "Failed to create shell"), (0, "")]))
+    assert wordpress.ssh(cfg, "wp option get siteurl") == "ok\n"
+    assert len(calls) == 2
+
+    calls.clear()
+    monkeypatch.setattr(wordpress.subprocess, "run", fake_run([(1, "Error: no such post")]))
+    with pytest.raises(wordpress.WordPressError):
+        wordpress.ssh(cfg, "wp post get 1")
+    assert len(calls) == 1  # a real error is not retried

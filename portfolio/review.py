@@ -1,13 +1,8 @@
-"""Local review page: pick photos, edit the text, then create the WordPress draft."""
+"""Saving the review form, and opening a job's review page in Portfolio Studio."""
 
 from __future__ import annotations
 
-import threading
-import webbrowser
-
-from flask import Flask, abort, redirect, render_template, request, send_from_directory, url_for
-
-from . import pipeline, wordpress
+from . import wordpress
 from .config import Config
 from .pipeline import Job
 
@@ -45,52 +40,8 @@ def save_form(job: Job, form) -> None:
     job.save()
 
 
-def create_app(cfg: Config, job: Job) -> Flask:
-    app = Flask(__name__)
+def serve(cfg: Config, job: Job, open_browser: bool = True) -> None:
+    """Open this job's review page in Portfolio Studio (starting the studio if needed)."""
+    from .web import serve as serve_studio
 
-    @app.get("/")
-    def index():
-        draft = job.data["draft"]
-        order = {k: i + 1 for i, k in enumerate(draft.get("image_order", []))}
-        if not order:
-            order = {c.key: i + 1 for i, c in enumerate(c for c in job.candidates if c.keep)}
-        return render_template(
-            "review.html",
-            job=job.data,
-            draft=draft,
-            writeup="\n\n".join(draft["paragraphs"]),
-            candidates=job.candidates,
-            order=order,
-            banner=draft.get("banner") or next(iter(order), ""),
-            alts=draft.get("alt", {}),
-            message=request.args.get("message", ""),
-            published=job.data.get("published", []),
-        )
-
-    @app.get("/files/<path:name>")
-    def files(name: str):
-        if not (name.startswith("thumbs/") or name.startswith("images/")):
-            abort(404)
-        return send_from_directory(job.dir, name)
-
-    @app.post("/save")
-    def save():
-        save_form(job, request.form)
-        if request.form.get("action") != "publish":
-            return redirect(url_for("index", message="Saved."))
-        try:
-            result = pipeline.publish(cfg, job, print)
-        except Exception as exc:  # show the problem on the page instead of a stack trace
-            return redirect(url_for("index", message=f"Publishing failed: {exc}"))
-        return redirect(url_for("index", message=f"Draft created (post {result['post_id']})."))
-
-    return app
-
-
-def serve(cfg: Config, job: Job, port: int = 5055, open_browser: bool = True) -> None:
-    app = create_app(cfg, job)
-    url = f"http://127.0.0.1:{port}/"
-    print(f"Review page: {url}  (press Ctrl+C here when you are done)")
-    if open_browser:
-        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    app.run(host="127.0.0.1", port=port, debug=False)
+    serve_studio(cfg, path=f"/jobs/{job.data['slug']}/review", open_browser=open_browser)

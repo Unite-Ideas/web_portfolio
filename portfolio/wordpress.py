@@ -6,6 +6,7 @@ import base64
 import json
 import re
 import subprocess
+import time
 from pathlib import Path
 
 import httpx
@@ -26,19 +27,29 @@ def slugify(text: str) -> str:
 # ---------------------------------------------------------------- SSH / WP-CLI
 
 
+SSH_RETRY_WAITS = (3, 6)  # seconds to wait before each retry
+
+
 def ssh(cfg: Config, command: str, stdin: str | None = None, timeout: int = 300) -> str:
-    """Run a command on the WP Engine SSH gateway and return stdout."""
-    result = subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", cfg.ssh_target, command],
-        input=stdin,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=timeout,
-    )
-    if result.returncode != 0:
-        raise WordPressError(f"SSH command failed ({command}):\n{result.stderr.strip() or result.stdout.strip()}")
-    return result.stdout
+    """Run a command on the WP Engine SSH gateway and return stdout.
+
+    The gateway sometimes answers "Failed to create shell" when connections come close
+    together. The command never started in that case, so it is safe to wait and retry."""
+    for wait in (0,) + SSH_RETRY_WAITS:
+        time.sleep(wait)
+        result = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", cfg.ssh_target, command],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=timeout,
+        )
+        if result.returncode == 0:
+            return result.stdout
+        if "Failed to create shell" not in (result.stderr + result.stdout):
+            break
+    raise WordPressError(f"SSH command failed ({command}):\n{result.stderr.strip() or result.stdout.strip()}")
 
 
 def fetch_template(cfg: Config) -> list[dict]:

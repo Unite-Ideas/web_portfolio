@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Portfolio Studio{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500&family=Didact+Gothic&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#F2EEE7;--soft:#D6D1C8;--muted:#B3ADA4;--faint:#8F8A82;--gold:#C9AE8A;--gold-hi:#E9D3B2;--ok:#8FD1A6;--warn:#EBC587;--bad:#F2A097;--ground:#140A2C}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--ground)}
+body{font:16px/1.5 "Didact Gothic",system-ui,sans-serif;color:var(--ink);position:relative;overflow-x:hidden}
+a{color:#D9C3A3}a:hover{color:#F2E3CC}
+.vw{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.vw-sky{position:absolute;inset:0;background:radial-gradient(55% 45% at 88% 8%,rgba(1,205,254,.30),rgba(1,205,254,0) 70%),radial-gradient(60% 50% at 8% 92%,rgba(255,113,206,.38),rgba(255,113,206,0) 70%),radial-gradient(45% 40% at 55% 45%,rgba(185,103,255,.22),rgba(185,103,255,0) 70%),linear-gradient(180deg,#140A2C 0%,#1D0D3C 55%,#2B0E3F 100%)}
+.vw-sun{position:absolute;top:110px;right:7%;width:340px;height:340px;border-radius:50%;background:linear-gradient(180deg,#FFE29A 0%,#FF9BD8 55%,#FF71CE 100%);opacity:.22;-webkit-mask-image:linear-gradient(180deg,#000 0 52%,transparent 52% 56%,#000 56% 66%,transparent 66% 71%,#000 71% 80%,transparent 80% 86%,#000 86%);mask-image:linear-gradient(180deg,#000 0 52%,transparent 52% 56%,#000 56% 66%,transparent 66% 71%,#000 71% 80%,transparent 80% 86%,#000 86%)}
+.vw-grid{position:absolute;left:-40%;right:-40%;bottom:-6%;height:46%;background-image:linear-gradient(rgba(255,113,206,.30) 1px,transparent 1px),linear-gradient(90deg,rgba(1,205,254,.24) 1px,transparent 1px);background-size:72px 72px;transform:perspective(420px) rotateX(64deg);transform-origin:50% 100%;-webkit-mask-image:linear-gradient(0deg,#000 20%,transparent 90%);mask-image:linear-gradient(0deg,#000 20%,transparent 90%)}
+@keyframes vwmove{to{background-position:0 72px}}
+@media (prefers-reduced-motion:no-preference){.vw-grid{animation:vwmove 5s linear infinite}}
+.page{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:28px 40px 72px;display:flex;flex-direction:column;gap:32px}
+.glass{background:rgba(20,21,24,.56);-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 24px 60px rgba(0,0,0,.42);border-radius:22px}
+.pad{padding:28px 30px}
+.eyebrow{font-family:Oswald,sans-serif;font-weight:400;font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--gold);margin:0}
+.display{font-family:Oswald,sans-serif;font-weight:300;letter-spacing:.14em;text-transform:uppercase;color:var(--ink);margin:0;line-height:1.1}
+h1.display{font-size:48px}
+.label{font-family:Oswald,sans-serif;font-weight:400;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin:0}
+.lede{margin:0;max-width:640px;font-size:18px;line-height:1.6;color:#C9C4BB}
+.muted{color:var(--muted)}.small{font-size:14px}
+.input{width:100%;background:rgba(0,0,0,.34);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:13px 15px;color:var(--ink);font:16px "Didact Gothic",sans-serif}
+.input::placeholder{color:var(--faint)}
+.input:focus,.btn:focus-visible,.chip:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+select.input option{background:#1D0D3C;color:var(--ink)}
+textarea.input{resize:vertical;line-height:1.55}
+.field{display:flex;flex-direction:column;gap:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:44px;padding:0 20px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:var(--ink);font-family:Oswald,sans-serif;font-size:12px;letter-spacing:.22em;text-transform:uppercase;text-decoration:none;cursor:pointer}
+.btn:hover{background:rgba(255,255,255,.12);color:#fff}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.gold{min-height:52px;padding:0 28px;background:var(--gold);border-color:var(--gold);color:#17140F;font-weight:500;font-size:14px;letter-spacing:.24em}
+.btn.gold:hover{background:#D8C09F;color:#17140F}
+.btn.on{background:rgba(201,174,138,.16);border-color:var(--gold);color:#F2E3CC}
+.chip{min-height:40px;padding:0 16px;border-radius:999px;font-family:Oswald,sans-serif;font-size:12px;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);color:#C9C4BB}
+.chip[aria-pressed="true"]{background:rgba(201,174,138,.18);border-color:var(--gold);color:#F2E3CC}
+.tag{font-family:Oswald,sans-serif;font-size:11px;letter-spacing:.16em;text-transform:uppercase;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.18);color:var(--soft);white-space:nowrap}
+.tag.ok{border-color:rgba(143,209,166,.55);color:#A9DDBB}.tag.gold{border-color:rgba(201,174,138,.6);color:var(--gold-hi)}.tag.warn{border-color:rgba(232,184,107,.6);color:var(--warn)}.tag.bad{border-color:rgba(242,160,151,.6);color:var(--bad)}.tag.muted{color:var(--muted)}
+.msg{padding:14px 18px;border-radius:14px;background:rgba(201,174,138,.14);border:1px solid rgba(201,174,138,.45);color:#F2E3CC}
+.msg.ok{background:rgba(143,209,166,.12);border-color:rgba(143,209,166,.5);color:#CDEBD7}
+.msg.bad{background:rgba(242,160,151,.12);border-color:rgba(242,160,151,.5);color:#F7D2CD}
+.topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:baseline;gap:16px;text-decoration:none}
+.brand b{font-family:Oswald,sans-serif;font-weight:500;font-size:26px;letter-spacing:.38em;color:var(--ink)}
+.nav{display:flex;flex-wrap:wrap;align-items:center;gap:26px}
+.navlink{font-family:Oswald,sans-serif;font-size:13px;letter-spacing:.26em;text-transform:uppercase;color:var(--muted);text-decoration:none;padding:12px 2px;border-bottom:1px solid transparent}
+.navlink:hover{color:var(--ink)}
+.navlink.active{color:var(--ink);border-bottom-color:var(--gold)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--muted)}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.gold{background:var(--gold)}
+.bento{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:20px}
+.s4{grid-column:span 4}.s5{grid-column:span 5}.s6{grid-column:span 6}.s7{grid-column:span 7}.s8{grid-column:span 8}.s12{grid-column:span 12}
+.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (max-width:900px){.page{padding:20px 16px 56px}.bento{grid-template-columns:minmax(0,1fr)}.s4,.s5,.s6,.s7,.s8,.s12{grid-column:auto}.two{grid-template-columns:minmax(0,1fr)}h1.display{font-size:34px}.pad{padding:22px 18px}}
+{% block style %}{% endblock %}
+</style>
+</head>
+<body>
+<div class="vw" aria-hidden="true"><div class="vw-sky"></div><div class="vw-sun"></div><div class="vw-grid"></div></div>
+<div class="page">
+<header class="topbar">
+  <a class="brand" href="{{ url_for('home') }}"><b>UNITE</b><span class="eyebrow">Portfolio Studio</span></a>
+  <nav class="nav" aria-label="Main">
+    <a class="navlink {% if nav == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
+    <a class="navlink {% if nav == 'jobs' %}active{% endif %}" href="{{ url_for('jobs_page') }}">Jobs</a>
+    <a class="navlink {% if nav == 'settings' %}active{% endif %}" href="{{ url_for('settings_page') }}">Settings</a>
+    {% if running_jobs %}
+      <a class="btn" href="{{ url_for('job_page', slug=running_jobs[0]) }}"><span class="dot gold"></span>Job running</a>
+    {% endif %}
+    <a class="btn" href="{{ url_for('settings_page') }}"><span class="dot {{ pill[1] }}"></span>{{ pill[0] }}</a>
+  </nav>
+</header>
+{% block content %}{% endblock %}
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

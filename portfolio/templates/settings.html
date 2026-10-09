@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Settings: Portfolio Studio{% endblock %}
+{% block style %}
+.crow{display:flex;align-items:center;gap:16px;padding:14px 0;border-top:1px solid rgba(255,255,255,.07)}
+.crow:first-of-type{border-top:0}
+.crow .t{font-family:Oswald,sans-serif;font-size:16px;letter-spacing:.14em;text-transform:uppercase}
+.rule{padding:10px 16px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);font-size:14px;color:var(--soft)}
+{% endblock %}
+{% block content %}
+<div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px;padding-top:8px">
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <p class="eyebrow">Everything the studio connects to</p>
+    <h1 class="display">Settings</h1>
+  </div>
+  <form method="post" action="{{ url_for('settings_check') }}" style="margin:0">
+    <button class="btn gold" type="submit" {% if checks.running %}disabled{% endif %}>{{ 'Checking...' if checks.running else 'Run the check again' }}</button>
+  </form>
+</div>
+
+{% if message %}<div class="msg ok" role="status">{{ message }}</div>{% endif %}
+
+<div class="bento">
+  <section class="glass pad s7" aria-labelledby="conn-title">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px">
+      <h2 id="conn-title" class="label" style="color:var(--ink)">Connections</h2>
+      {% if checks.at %}<span class="small muted">Checked at {{ checks.at }}</span>{% endif %}
+    </div>
+    {% if checks.running and not checks.results %}
+      <p class="muted">Checking Dropbox, WordPress, SSH and Claude. This takes about half a minute.</p>
+    {% endif %}
+    {% for c in checks.results %}
+      <div class="crow">
+        {% if c.ok %}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-label="Working" style="flex:none"><circle cx="12" cy="12" r="10" fill="rgba(143,209,166,.18)" stroke="#8FD1A6" stroke-width="1.4"/><path d="M7.5 12.5l3 3 6-6.5" stroke="#8FD1A6" stroke-width="1.8"/></svg>
+        {% elif c.name == 'Google Places' %}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-label="Optional" style="flex:none"><circle cx="12" cy="12" r="10" stroke="#EBC587" stroke-width="1.4"/><path d="M12 7.5v5.5M12 16.5v.5" stroke="#EBC587" stroke-width="1.8"/></svg>
+        {% else %}
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-label="Problem" style="flex:none"><circle cx="12" cy="12" r="10" stroke="#F2A097" stroke-width="1.4"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke="#F2A097" stroke-width="1.8"/></svg>
+        {% endif %}
+        <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+          <span class="t">{{ c.name }}</span>
+          <span class="small muted" style="overflow-wrap:anywhere">{{ c.detail }}</span>
+        </span>
+      </div>
+    {% endfor %}
+  </section>
+
+  <div class="s5" style="display:flex;flex-direction:column;gap:20px">
+    <section class="glass pad" aria-labelledby="models-title">
+      <form method="post" action="{{ url_for('settings_models') }}" style="display:flex;flex-direction:column;gap:16px;margin:0">
+        <h2 id="models-title" class="label" style="color:var(--ink)">Claude models</h2>
+        <div class="field"><label class="label" for="claude_model">Research and write-up</label>
+          <select class="input" id="claude_model" name="claude_model">
+            {% for m, name in models %}<option value="{{ m }}" {% if m == cfg.claude_model %}selected{% endif %}>{{ name }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label class="label" for="photo_model">Photo check</label>
+          <select class="input" id="photo_model" name="photo_model">
+            {% for m, name in models %}<option value="{{ m }}" {% if m == cfg.photo_model %}selected{% endif %}>{{ name }}</option>{% endfor %}
+          </select></div>
+        <p class="small muted" style="margin:0">The photo check sends one request per photo, so it uses the cheapest model. Haiku is about 1/40th the cost of Opus.</p>
+        <button class="btn" type="submit" style="align-self:flex-start">Save models</button>
+      </form>
+    </section>
+    <section class="glass pad" aria-labelledby="keys-title" style="display:flex;flex-direction:column;gap:12px">
+      <h2 id="keys-title" class="label" style="color:var(--ink)">Keys and passwords</h2>
+      <p style="margin:0;color:var(--soft)">Stored in the .env file on this PC only. They are never shown here or sent anywhere except the service they belong to.</p>
+      <form method="post" action="{{ url_for('settings_open_env') }}" style="margin:0"><button class="btn" type="submit">Open .env in Notepad</button></form>
+    </section>
+  </div>
+
+  <section class="glass pad s12" aria-labelledby="defaults-title" style="display:flex;flex-direction:column;gap:16px">
+    <h2 id="defaults-title" class="label" style="color:var(--ink)">How posts are made</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      <span class="rule">Layout copied from post {{ cfg.template_post_id }} (Pancheros)</span>
+      <span class="rule">Title: Business - City</span>
+      <span class="rule">40 Dropbox photos checked unless you change it</span>
+      <span class="rule">Calls the firm Unite or we</span>
+      <span class="rule">Never names owners or franchisees</span>
+      <span class="rule">No em dashes</span>
+      <span class="rule">Restaurants get QSR</span>
+      <span class="rule">Hand-picked renders add Visualization</span>
+      <span class="rule">Invoices and POs are never read</span>
+    </div>
+    <p class="small muted" style="margin:0">Dropbox folder: {{ cfg.dropbox_clients_dir }}</p>
+  </section>
+
+  <section class="glass pad s12" aria-labelledby="quit-title" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <h2 id="quit-title" class="label" style="color:var(--ink)">Close the studio</h2>
+      <p class="small muted" style="margin:0">Stops the studio on this PC. Open it again from the desktop shortcut.</p>
+    </div>
+    <form method="post" action="{{ url_for('quit_studio') }}" style="margin:0" id="quitForm"><button class="btn" type="submit">Close Portfolio Studio</button></form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById('quitForm').addEventListener('submit', (e) => {
+    const running = {{ running_jobs | length }};
+    if (running && !confirm('A job is still running. Closing the studio stops it. Close anyway?')) e.preventDefault();
+  });
+  {% if checks.running %}setTimeout(() => location.reload(), 3000);{% endif %}
+</script>
+{% endblock %}

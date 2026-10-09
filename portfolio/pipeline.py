@@ -205,7 +205,9 @@ def step_collect(cfg: Config, job: Job, log: Log) -> None:
     job.save()
 
 
-def step_classify(claude: Claude, job: Job, log: Log) -> None:
+def step_classify(
+    claude: Claude, job: Job, log: Log, on_photo: Callable[[Candidate], None] | None = None
+) -> None:
     cands = job.candidates
     todo = [c for c in cands if not c.review]
     if not todo:
@@ -225,6 +227,8 @@ def step_classify(claude: Claude, job: Job, log: Log) -> None:
         except Exception as exc:  # one bad photo should not stop the run
             cand.review = {"error": str(exc)}
         cand.score = analysis.photo_score(cand.review, allow_renders=cand.picked)
+        if on_photo:
+            on_photo(cand)
         return cand
 
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -283,15 +287,21 @@ def step_write(claude: Claude, job: Job, log: Log) -> None:
 
 
 def gather(
-    cfg: Config, job: Job, log: Log, choose: Callable[[list], list[Path]], folders: list[Path] | None = None
+    cfg: Config,
+    job: Job,
+    log: Log,
+    choose: Callable[[list], list[Path]],
+    folders: list[Path] | None = None,
+    on_photo: Callable[[Candidate], None] | None = None,
 ) -> None:
+    """Run every step that has not finished yet. `on_photo` is called as each photo is checked."""
     claude = Claude(cfg.anthropic_api_key, cfg.claude_model)
     photo_claude = Claude(cfg.anthropic_api_key, cfg.photo_model)
     step_dropbox(cfg, job, log, choose, folders)
     step_place(cfg, job, log)
     step_research(claude, job, log)
     step_collect(cfg, job, log)
-    step_classify(photo_claude, job, log)
+    step_classify(photo_claude, job, log, on_photo)
     step_write(claude, job, log)
 
 

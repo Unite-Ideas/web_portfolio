@@ -57,11 +57,21 @@ First jobs: Rock N Roll Sushi, Pancheros Mexican Grill and Hurts Donut, in vario
 - New jobs come from `_NewClient_Template` with subfolders Proposals, _REFERENCE, PRESENTATIONS,
   RENDERS, FINALS, WEB, Invoices, POs (money folders are never read).
 
-## Status at handoff
-- All code written; 23 tests pass with fakes for Claude, Google, SSH and WordPress.
-- Not yet run for real. Next steps: set up on Sean's PC per README.md, have Sean add the
-  Anthropic key, Google Places key and WordPress Application Password to `.env` himself,
-  run `python -m portfolio check`, then the first real job and fix whatever comes up.
-- Unverified on the live server: `wp eval-file -` reading PHP from stdin, REST media upload
-  auth, and how the Bauen header picks up the banner. Check these on the first run.
-- Not done yet: All in One SEO fields; adding a QSR filter button to the Our Work page grid.
+## Portfolio Studio (the UI)
+- Local Flask app in `portfolio/web.py`, templates in `portfolio/templates/` (base, home,
+  progress, review, jobs, settings). Runs only on Sean's PC at 127.0.0.1:5055; Sean chose
+  local-only (no cloud host, no WordPress plugin).
+- Desktop shortcut "Portfolio Studio" runs `.venv\Scripts\pythonw.exe -m portfolio app`
+  (no console; log in `jobs\studio.log`). A second launch just opens the browser.
+- Look: "liquid glass, vaporwave dusk" (dark indigo, magenta/cyan glows, striped sun, slow
+  neon grid), frosted panels, Oswald + Didact Gothic, Unite gold #C9AE8A.
+- Jobs run in background threads; the progress page polls `/api/jobs/<slug>/status`.
+- The folder picker only reads inside `DROPBOX_CLIENTS_DIR` (path checks in `Folders.resolve`).
+- The WP Engine SSH gateway sometimes says "Failed to create shell" for back-to-back
+  connections; `wordpress.ssh` waits and retries only on that message.
+
+## Status
+- In real use since 2026-10-08: drafts for Rock N Roll Sushi Mansfield and Oxford, Hurts Donut
+  Hot Springs and Cross Pointe Dorms. Publishing, media upload and the banner all work.
+- Not done yet: All in One SEO fields; adding a QSR filter button to the Our Work page grid;
+  updating an existing post in place (the tool always creates a new draft).

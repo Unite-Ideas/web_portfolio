@@ -1,5 +1,7 @@
 """Command line entry point.
 
+    python -m portfolio app          (Portfolio Studio in the browser)
+    python -m portfolio shortcut     (put a Portfolio Studio shortcut on the desktop)
     python -m portfolio new "Rock N Roll Sushi" "Mansfield, TX"
     python -m portfolio review rock-n-roll-sushi-mansfield-tx
     python -m portfolio check
@@ -69,30 +71,43 @@ def find_job(cfg: Config, name: str) -> pipeline.Job:
     return pipeline.Job.load(path)
 
 
+def make_shortcut() -> int:
+    """Create "Portfolio Studio" on the desktop. It starts the studio with no console window."""
+    import os
+    import subprocess
+
+    from .config import PROJECT_ROOT
+
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    if not pythonw.exists():
+        print(f"Could not find {pythonw}. Run this from the project's .venv.")
+        return 1
+    # Paths go in through environment variables, so quotes and spaces in them cannot break the command.
+    env = dict(os.environ, PS_TARGET=str(pythonw), PS_DIR=str(PROJECT_ROOT))
+    script = (
+        "$desk = [Environment]::GetFolderPath('Desktop');"
+        "$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $desk 'Portfolio Studio.lnk'));"
+        "$s.TargetPath = $env:PS_TARGET; $s.Arguments = '-m portfolio app'; $s.WorkingDirectory = $env:PS_DIR;"
+        "$s.Description = 'Unite Portfolio Studio'; $s.Save(); Write-Output (Join-Path $desk 'Portfolio Studio.lnk')"
+    )
+    result = subprocess.run(["powershell", "-NoProfile", "-Command", script], env=env, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Could not create the shortcut: {result.stderr.strip()}")
+        return 1
+    print(f"Shortcut created: {result.stdout.strip()}")
+    return 0
+
+
 def cmd_check(cfg: Config) -> int:
-    ok = True
-    missing = cfg.missing()
-    if missing:
-        ok = False
-        print(f"Missing settings in .env: {', '.join(missing)}")
-    if not cfg.google_maps_api_key:
-        print("Note: GOOGLE_MAPS_API_KEY is empty, so Google listing photos will be skipped.")
-    if cfg.dropbox_clients_dir and cfg.dropbox_clients_dir.is_dir():
-        years = [p.name for p in cfg.dropbox_clients_dir.glob("__UNITE_*")]
-        print(f"Dropbox folder OK ({', '.join(sorted(years)) or 'no __UNITE_ year folders'})")
-    else:
-        ok = False
-        print(f"Dropbox folder not found: {cfg.dropbox_clients_dir}")
-    for name, test in [
-        ("SSH / WP-CLI", lambda: wordpress.ssh(cfg, "wp option get siteurl").strip()),
-        ("Template layout", lambda: f"{len(wordpress.fetch_template(cfg))} top-level sections in post {cfg.template_post_id}"),
-        ("REST API login", lambda: f"logged in as {wordpress.check_rest(cfg)}"),
-    ]:
-        try:
-            print(f"{name} OK: {test()}")
-        except Exception as exc:
-            ok = False
-            print(f"{name} FAILED: {exc}")
+    from .checks import required_ok, run_checks
+
+    results = run_checks(cfg)
+    for r in results:
+        if r["name"] == "Google Places" and not r["ok"]:
+            print(f"Note: {r['detail']}")
+        else:
+            print(f"{r['name']} {'OK' if r['ok'] else 'FAILED'}: {r['detail']}")
+    ok = required_ok(results)
     print("All checks passed." if ok else "Fix the items above, then run check again.")
     return 0 if ok else 1
 
@@ -117,11 +132,23 @@ def main(argv: list[str] | None = None) -> None:
     review.add_argument("job", help="Job folder name (or part of it)")
     review.add_argument("--no-browser", action="store_true")
 
+    app = sub.add_parser("app", help="Open Portfolio Studio in the browser")
+    app.add_argument("--no-browser", action="store_true")
+    sub.add_parser("shortcut", help="Put a Portfolio Studio shortcut on the desktop")
     sub.add_parser("check", help="Test the settings, Dropbox folder, SSH and WordPress login")
     sub.add_parser("list", help="List jobs")
 
     args = parser.parse_args(argv)
     cfg = load_config()
+
+    if args.command == "app":
+        from .web import serve
+
+        serve(cfg, open_browser=not args.no_browser)
+        return
+
+    if args.command == "shortcut":
+        sys.exit(make_shortcut())
 
     if args.command == "check":
         sys.exit(cmd_check(cfg))

@@ -91,7 +91,23 @@ python -m portfolio check
 
 This tests the Dropbox folder, SSH, reading the template layout, and the WordPress login.
 
-## Everyday use
+## Everyday use: Portfolio Studio
+
+Double-click **Portfolio Studio** on the desktop. It opens in your browser:
+
+- **Home**: type the business and city, pick Dropbox folders (best matches, search, or browse;
+  pick several to group them), add notes, then **Start project**.
+- **Progress**: each step live, with a photo counter. The review page opens when it is done.
+- **Review**: click photos to pick them (in order), star the banner, edit the text, then
+  **Create WordPress draft**.
+- **Jobs**: every project run on this PC. **Settings**: connection checks, which Claude models
+  to use, open `.env`, and close the studio.
+
+To make the shortcut (once): `python -m portfolio shortcut`. To start the studio from
+PowerShell instead: `python -m portfolio app`. It runs at http://127.0.0.1:5055 and only on this
+PC. Without a console window, its log is `jobs\studio.log`.
+
+## Command line
 
 ```powershell
 cd $env:USERPROFILE\web_portfolio
