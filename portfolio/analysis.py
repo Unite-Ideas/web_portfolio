@@ -167,10 +167,10 @@ WRITEUP_SCHEMA = {
         "year": {"type": "string"},
         "paragraphs": {"type": "array", "items": {"type": "string"}},
         "excerpt": {"type": "string"},
-        "is_restaurant": {"type": "boolean"},
+        "building_type": {"type": "string", "enum": ["ministry", "food_service", "hospitality", "commercial"]},
         "review_notes": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["title", "project_name", "location", "year", "paragraphs", "excerpt", "is_restaurant", "review_notes"],
+    "required": ["title", "project_name", "location", "year", "paragraphs", "excerpt", "building_type", "review_notes"],
     "additionalProperties": False,
 }
 
@@ -198,7 +198,9 @@ Fields:
 - year: {year_hint}
 - paragraphs: the write-up.
 - excerpt: one sentence summary for search results, under 160 characters.
-- is_restaurant: true for restaurants, cafes, coffee shops, bakeries and other food service.
+- building_type: the portfolio category. "ministry" for churches, ministries, camps, Christian schools and other
+  nonprofits; "food_service" for restaurants, QSR, bakeries and other food service that is not a ministry;
+  "hospitality" for hotels and lodging; "commercial" for everything else.
 - review_notes: anything uncertain or contradictory the owner should check before publishing.
 
 NOTES FROM THE FIRM (accurate; follow any naming or wording instructions in them):

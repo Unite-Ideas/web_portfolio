@@ -24,6 +24,8 @@ MAX_WEB_PAGES = 15
 MAX_WEB_IMAGES = 40
 MAX_DROPBOX_IMAGES = 40
 SUGGESTED_PHOTOS = 8
+# What the write-up step returns -> portfolio category slug.
+BUILDING_TYPES = {"ministry": "ministry", "food_service": "food-service", "hospitality": "hospitality", "commercial": "commercial"}
 
 Log = Callable[[str], None]
 
@@ -267,9 +269,8 @@ def step_write(claude: Claude, job: Job, log: Log) -> None:
         job.data.get("research", {}),
         notes=job.data.get("notes", ""),
     )
-    categories = ["architecture"] + (["qsr"] if post["is_restaurant"] else [])
-    if any(c.keep and c.review.get("kind") == "rendering" for c in job.candidates):
-        categories.append("visualization")
+    # One portfolio category per post, by building type.
+    categories = [BUILDING_TYPES.get(post.get("building_type", ""), "commercial")]
     # Title format is "Rock N Roll Sushi - Oxford" unless --title gave one.
     title = job.data.get("title") or f"{job.data['business']} - {job.data['city'].split(',')[0].strip()}"
     job.data["draft"] = {
@@ -307,7 +308,10 @@ def gather(
 
 # ---------------------------------------------------------------- publish
 
-CATEGORY_NAMES = {"architecture": "ARCHITECTURE", "qsr": "QSR", "visualization": "VISUALIZATION"}
+# Portfolio categories by building type (Sean's change, 2026-10-09). The old ones (ARCHITECTURE,
+# VISUALIZATION, CAMPAIGN, QSR) are gone from the site and must never be recreated.
+CATEGORY_NAMES = {"ministry": "MINISTRY", "food-service": "FOOD SERVICE", "hospitality": "HOSPITALITY", "commercial": "COMMERCIAL"}
+OLD_CATEGORIES = {"qsr": "food-service"}  # drafts saved before the change
 
 
 def media_description(cand: Candidate) -> str:
@@ -321,6 +325,16 @@ def media_description(cand: Candidate) -> str:
     return " | ".join(parts)
 
 
+def post_categories(draft: dict) -> list[str]:
+    """The draft's categories that still exist on the site, with old ones mapped or dropped."""
+    out = []
+    for slug in draft.get("categories", []):
+        slug = OLD_CATEGORIES.get(slug, slug)
+        if slug in CATEGORY_NAMES and slug not in out:
+            out.append(slug)
+    return out
+
+
 def publish(cfg: Config, job: Job, log: Log) -> dict:
     draft = job.data["draft"]
     by_key = {c.key: c for c in job.candidates}
@@ -328,6 +342,9 @@ def publish(cfg: Config, job: Job, log: Log) -> dict:
     if not selected:
         raise ValueError("No photos selected.")
     banner_key = draft.get("banner") or selected[0].key
+    categories = post_categories(draft)
+    if not categories:
+        raise ValueError("Pick a category: Ministry, Food Service, Hospitality or Commercial.")
 
     log("Reading the template layout...")
     template = wordpress.fetch_template(cfg)
@@ -367,7 +384,7 @@ def publish(cfg: Config, job: Job, log: Log) -> dict:
         "elementor_data": to_json(layout),
         "banner_id": uploaded.get(banner_key, uploaded[selected[0].key])["id"],
         "attachment_ids": [uploaded[c.key]["id"] for c in selected],
-        "categories": [{"slug": s, "name": CATEGORY_NAMES.get(s, s.upper())} for s in draft["categories"]],
+        "categories": [{"slug": s, "name": CATEGORY_NAMES[s]} for s in categories],
     }
     log("Creating the draft in WordPress...")
     result = wordpress.create_draft(cfg, payload)

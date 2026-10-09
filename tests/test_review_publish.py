@@ -38,7 +38,7 @@ def make_job(tmp_path):
     job.data["research"] = {"facts": [{"fact": "Opened 2025", "source_url": "https://x"}], "organizations": []}
     job.data["draft"] = {"title": "Rock N Roll Sushi Mansfield", "slug": "rock-n-roll-sushi-mansfield",
                          "project_name": "Rock N Roll Sushi QSR", "location": "Mansfield, TX", "year": "2025",
-                         "paragraphs": ["One.", "Two."], "excerpt": "e", "categories": ["architecture", "qsr"],
+                         "paragraphs": ["One.", "Two."], "excerpt": "e", "categories": ["architecture", "qsr"],  # saved before the change
                          "review_notes": ["Check the opening date."]}
     job.save()
     return job
@@ -58,7 +58,7 @@ def test_review_page_and_save(tmp_path):
     resp = client.post(f"/jobs/{slug}/save", data={
         "action": "save", "title": "RNR Mansfield", "slug": "", "project_name": "RNR QSR",
         "location": "Mansfield, TX", "year": "2025", "excerpt": "x", "writeup": "Para one.\r\n\r\nPara two.",
-        "categories": ["architecture", "qsr"], "use_k0": "1", "order_k0": "2", "use_k1": "1", "order_k1": "1",
+        "categories": ["food-service"], "use_k0": "1", "order_k0": "2", "use_k1": "1", "order_k1": "1",
         "banner": "k0", "alt_k1": "Dining room", "layout_rows": "1,1",
     })
     assert resp.status_code == 302
@@ -94,7 +94,8 @@ def test_publish_builds_payload(tmp_path, monkeypatch):
     assert uploads[0][2] == "Source: https://news.example.com/a"
     assert captured["banner_id"] == 502  # k0 was uploaded second
     assert captured["attachment_ids"] == [501, 502]
-    assert captured["categories"] == [{"slug": "architecture", "name": "ARCHITECTURE"}, {"slug": "qsr", "name": "QSR"}]
+    # Old categories are mapped (QSR -> FOOD SERVICE) or dropped, never recreated.
+    assert captured["categories"] == [{"slug": "food-service", "name": "FOOD SERVICE"}]
     layout = json.loads(captured["elementor_data"])
     assert "rock-n-roll-sushi-mansfield-interior-1.jpg" in captured["elementor_data"]
     assert layout[0]["elType"] == "section"
@@ -168,3 +169,14 @@ def test_ssh_retries_only_when_shell_not_created(tmp_path, monkeypatch):
     with pytest.raises(wordpress.WordPressError):
         wordpress.ssh(cfg, "wp post get 1")
     assert len(calls) == 1  # a real error is not retried
+
+
+def test_publish_needs_a_current_category(tmp_path, monkeypatch):
+    cfg = make_cfg(tmp_path)
+    job = make_job(tmp_path)
+    job.data["draft"]["image_order"] = ["k0"]
+    job.data["draft"]["categories"] = ["architecture", "visualization"]
+    job.save()
+    monkeypatch.setattr(wordpress, "fetch_template", lambda cfg: TEMPLATE)
+    with pytest.raises(ValueError, match="Pick a category"):
+        pipeline.publish(cfg, job, lambda m: None)

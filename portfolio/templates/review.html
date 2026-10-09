@@ -93,11 +93,12 @@
       </div>
       <div class="field"><label class="label" for="project_name">Project name</label><input class="input" id="project_name" name="project_name" type="text" value="{{ draft.project_name }}"></div>
       <div class="field">
-        <span class="label">Categories</span>
-        <div style="display:flex;flex-wrap:wrap;gap:16px">
-          {% for cslug, cname in [("architecture","Architecture"),("qsr","QSR"),("visualization","Visualization")] %}
+        <span class="label">Category</span>
+        <div role="radiogroup" aria-label="Category" style="display:flex;flex-wrap:wrap;gap:16px">
+          {% set cats = draft.categories | map('replace', 'qsr', 'food-service') | list %}
+          {% for cslug, cname in [("ministry","Ministry"),("food-service","Food Service"),("hospitality","Hospitality"),("commercial","Commercial")] %}
             <label style="display:flex;align-items:center;gap:10px;min-height:40px;cursor:pointer">
-              <input type="checkbox" name="categories" value="{{ cslug }}" {% if cslug in draft.categories %}checked{% endif %} style="width:20px;height:20px;accent-color:#C9AE8A">{{ cname }}</label>
+              <input type="radio" name="categories" value="{{ cslug }}" {% if cslug in cats %}checked{% endif %} style="width:20px;height:20px;accent-color:#C9AE8A">{{ cname }}</label>
           {% endfor %}
         </div>
       </div>
@@ -297,6 +298,7 @@
   document.getElementById('publishBtn').addEventListener('click', (e) => {
     const count = flat().length;
     if (!count) { e.preventDefault(); alert('Pick at least one photo first.'); return; }
+    if (!document.querySelector('input[name=categories]:checked')) { e.preventDefault(); alert('Pick a category first.'); return; }
     if (!confirm('Upload the ' + count + ' picked photos and create a DRAFT portfolio post?')) e.preventDefault();
   });
   document.getElementById('reviewForm').addEventListener('submit', (e) => {

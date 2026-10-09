@@ -63,7 +63,7 @@ def test_gather_end_to_end(tmp_path, monkeypatch):
         seen_docs["docs"], seen_docs["year"] = documents, year
         return {"title": "Rock N Roll Sushi Mansfield", "project_name": "Rock N Roll Sushi QSR", "location": "Mansfield, TX",
                 "year": year, "paragraphs": ["Unite Ideas' design team drew the plans for Unite Ideas."],
-                "excerpt": "e", "is_restaurant": True, "review_notes": []}
+                "excerpt": "e", "building_type": "food_service", "review_notes": []}
     monkeypatch.setattr(analysis, "write_post", fake_write)
 
     job = pipeline.Job.create(cfg, "Rock N Roll Sushi", "Mansfield, TX")
@@ -83,7 +83,7 @@ def test_gather_end_to_end(tmp_path, monkeypatch):
     google = next(c for c in job.candidates if c.source == "google")
     assert google.credit == "Jane Doe"
     assert sum(c.keep for c in job.candidates) == 3
-    assert job.data["draft"]["categories"] == ["architecture", "qsr"]
+    assert job.data["draft"]["categories"] == ["food-service"]
 
     # Running again skips finished steps (no new Claude calls).
     calls = fake_classify.calls

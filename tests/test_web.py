@@ -80,7 +80,7 @@ def test_start_runs_job_then_review(tmp_path, monkeypatch):
         job.data["candidates"] = []
         job.data["draft"] = {"title": "Pancheros - Lebanon", "slug": "pancheros-lebanon", "project_name": "Pancheros QSR",
                              "location": "Lebanon, MO", "year": "2025", "paragraphs": ["We designed it."],
-                             "excerpt": "e", "categories": ["architecture", "qsr"], "review_notes": []}
+                             "excerpt": "e", "categories": ["food-service"], "review_notes": []}
         job.save()
 
     monkeypatch.setattr(pipeline, "gather", fake_gather)

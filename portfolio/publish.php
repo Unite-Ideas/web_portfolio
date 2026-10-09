@@ -89,7 +89,7 @@ if ( '' !== $header && null !== $header ) {
 	update_post_meta( $post_id, $header_key, wp_slash( $new_header ) );
 }
 
-// Categories, creating any that do not exist yet (for example QSR).
+// Categories, creating any that do not exist yet (for example HOSPITALITY).
 $term_ids = array();
 foreach ( $payload['categories'] as $category ) {
 	$term = term_exists( $category['slug'], 'portfolio_category' );

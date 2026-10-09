@@ -19,7 +19,7 @@ def save_form(job: Job, form) -> None:
             draft[field] = form[field].strip()
     draft["slug"] = wordpress.slugify(draft["slug"] or draft["title"])
     draft["paragraphs"] = _paragraphs(form.get("writeup", ""))
-    draft["categories"] = form.getlist("categories") or ["architecture"]
+    draft["categories"] = form.getlist("categories")
 
     order = []
     for cand in job.candidates:
