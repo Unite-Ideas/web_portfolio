@@ -47,6 +47,17 @@ class LayoutContent:
     project_name: str
     location: str
     images: list[LayoutImage]
+    rows: list[int] | None = None  # photos per row (1 or 2), set on the review page
+
+
+def valid_rows(rows, image_count: int) -> bool:
+    """A row layout is usable when every row holds 1 or 2 photos and they add up to the photos picked."""
+    return bool(rows) and all(n in (1, 2) for n in rows) and sum(rows) == image_count
+
+
+def default_rows(image_count: int) -> list[int]:
+    """Pairs side by side; an odd last photo gets a full-width row."""
+    return [2] * (image_count // 2) + [1] * (image_count % 2)
 
 
 class TemplateError(ValueError):
@@ -162,12 +173,16 @@ def build_layout(template: list[dict], content: LayoutContent) -> list[dict]:
             new_items.append(item)
         widget["settings"]["bauen_lists"] = new_items
 
-    # Image rows: two images per row. An odd last image gets a full-width row.
+    # Image rows: two images per row, or the rows chosen on the review page. A one-image row is full width.
     first_row_template = template_rows[0]
     later_row_template = template_rows[1] if len(template_rows) > 1 else template_rows[0]
     crop = _crop_settings(template_rows)
     new_rows = []
-    pairs = [content.images[i : i + 2] for i in range(0, len(content.images), 2)]
+    rows = content.rows if valid_rows(content.rows, len(content.images)) else default_rows(len(content.images))
+    pairs, start = [], 0
+    for n in rows:
+        pairs.append(content.images[start : start + n])
+        start += n
     image_index = 0
     for row_number, pair in enumerate(pairs):
         row = copy.deepcopy(first_row_template if row_number == 0 else later_row_template)

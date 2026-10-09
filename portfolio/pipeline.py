@@ -356,6 +356,7 @@ def publish(cfg: Config, job: Job, log: Log) -> dict:
             project_name=draft["project_name"],
             location=draft["location"],
             images=[LayoutImage(uploaded[c.key]["id"], uploaded[c.key]["url"], uploaded[c.key]["alt"]) for c in selected],
+            rows=draft.get("layout_rows"),
         ),
     )
     payload = {

@@ -94,3 +94,22 @@ def test_no_images_rejected():
 def test_json_round_trip():
     text = to_json(build_layout(TEMPLATE, content(2)))
     assert json.loads(text)[0]["elType"] == "section"
+
+
+def test_custom_rows_break_the_pairs_rule():
+    c = content(5)
+    c.rows = [1, 2, 1, 1]
+    layout = build_layout(TEMPLATE, c)
+    rows = image_rows(layout)
+    counts = [len([w for w in walk([r]) if w.get("widgetType") == IMAGE_WIDGET]) for r in rows]
+    assert counts == [1, 2, 1, 1]
+    assert image_urls(layout) == [f"https://uniteideas.com/img{i}.jpg" for i in range(5)]
+    first_cols = [e for e in rows[0]["elements"] if e["elType"] == "column"]
+    assert len(first_cols) == 1 and first_cols[0]["settings"]["_column_size"] == 100
+
+
+def test_rows_that_do_not_fit_fall_back_to_pairs():
+    c = content(3)
+    c.rows = [2, 2]  # adds up to 4, but only 3 photos
+    counts = [len([w for w in walk([r]) if w.get("widgetType") == IMAGE_WIDGET]) for r in image_rows(build_layout(TEMPLATE, c))]
+    assert counts == [2, 1]

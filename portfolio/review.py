@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from . import wordpress
 from .config import Config
+from .elementor import valid_rows
 from .pipeline import Job
 
 
@@ -29,6 +30,15 @@ def save_form(job: Job, form) -> None:
                 position = 999
             order.append((position, -cand.score, cand.key))
     draft["image_order"] = [key for _, _, key in sorted(order)]
+    # Photos per row from the layout editor, e.g. "1,2,2". Ignored unless it fits the photos picked.
+    try:
+        rows = [int(n) for n in form.get("layout_rows", "").split(",") if n.strip()]
+    except ValueError:
+        rows = []
+    if valid_rows(rows, len(draft["image_order"])):
+        draft["layout_rows"] = rows
+    else:
+        draft.pop("layout_rows", None)
     draft["banner"] = form.get("banner", "")
     draft["alt"] = {c.key: form.get(f"alt_{c.key}", "").strip() for c in job.candidates if form.get(f"use_{c.key}")}
 

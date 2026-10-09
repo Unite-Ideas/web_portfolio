@@ -20,8 +20,21 @@
 .card details summary{cursor:pointer;color:var(--muted);min-height:28px}
 .card .input{padding:8px 10px;font-size:14px}
 .src{color:var(--muted);overflow-wrap:anywhere}
-.preview-row{display:grid;gap:8px}
-.preview-row img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;display:block}
+.lrow{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:14px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.08)}
+.lrow-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.seg{display:inline-flex;border:1px solid rgba(255,255,255,.16);border-radius:999px;overflow:hidden}
+.seg button{min-height:36px;padding:0 14px;background:transparent;border:0;color:var(--muted);font-family:Oswald,sans-serif;font-size:11px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer}
+.seg button[aria-pressed="true"]{background:rgba(201,174,138,.2);color:#F2E3CC}
+.slots{display:grid;gap:8px}
+.tile{position:relative;border-radius:10px;overflow:hidden;cursor:grab;outline:2px solid transparent;transition:outline-color .15s,opacity .15s}
+.tile img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;pointer-events:none}
+.tile.dragging{opacity:.4}
+.tile.over,.empty.over{outline-color:var(--gold)}
+.tile .n{position:absolute;top:8px;left:8px;min-width:26px;height:26px;padding:0 7px;border-radius:999px;background:var(--gold);color:#17140F;font-family:Oswald,sans-serif;font-weight:500;font-size:13px;display:flex;align-items:center;justify-content:center}
+.tile .tools{position:absolute;right:6px;bottom:6px;display:flex;gap:4px}
+.tile .tools button{width:36px;height:36px;border-radius:999px;border:0;background:rgba(12,12,14,.7);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.tile .tools button:disabled{opacity:.35;cursor:default}
+.empty{border:2px dashed rgba(201,174,138,.45);border-radius:10px;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;color:var(--muted);font-size:14px;outline:2px solid transparent}
 .note{display:flex;gap:12px;font-size:15px;line-height:1.55;color:var(--soft)}
 .actions{position:sticky;bottom:16px;z-index:5;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px}
 @media (max-width:980px){.cols{grid-template-columns:minmax(0,1fr)}.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -130,15 +143,17 @@
         {% for c in building %}{{ card(c, true) }}{% endfor %}
         {% for c in other %}{{ card(c, false) }}{% endfor %}
       </div>
-      <p class="small muted" style="margin:0">Click a photo to add or remove it; photos go in the order you pick them. The star sets the page banner. Photos from Google and news sites belong to their photographers, so check you can use them.</p>
+      <p class="small muted" style="margin:0">Click a photo to add or remove it. New photos go at the end of the layout below, where you can drag them into place. The star sets the page banner. Photos from Google and news sites belong to their photographers, so check you can use them.</p>
     </section>
 
     <section class="glass pad" aria-labelledby="layout-title" style="display:flex;flex-direction:column;gap:14px">
       <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:12px">
-        <h2 id="layout-title" class="label" style="color:var(--ink)">Layout preview</h2>
-        <span class="small muted">Pairs side by side, same height. An odd last photo goes full width.</span>
+        <h2 id="layout-title" class="label" style="color:var(--ink)">Layout</h2>
+        <span class="small muted">Drag a photo onto another to swap them. Set each row to 1 or 2 photos.</span>
       </div>
-      <div id="preview" style="display:flex;flex-direction:column;gap:8px"></div>
+      <input type="hidden" name="layout_rows" id="layoutRows" value="">
+      <div id="preview" style="display:flex;flex-direction:column;gap:10px"></div>
+      <p class="small muted" style="margin:0">This is how the photos sit on the post, top to bottom. A row of one photo runs full width; photos in a row of two are cropped to the same height.</p>
     </section>
   </div>
 </div>
@@ -161,11 +176,70 @@
   const byKey = Object.fromEntries(cards.map((c) => [c.dataset.key, c]));
   const KINDS = [['all', 'All'], ['exterior', 'Exterior'], ['interior', 'Interior'], ['construction', 'Construction'], ['rendering', 'Renders'], ['other', 'Filtered out']];
   let filter = 'all';
-  let order = cards.filter((c) => c.classList.contains('on'))
+  const savedRows = {{ (draft.layout_rows or []) | tojson }};
+  const initial = cards.filter((c) => c.classList.contains('on'))
     .sort((a, b) => (+a.querySelector('.ord').value || 999) - (+b.querySelector('.ord').value || 999))
     .map((c) => c.dataset.key);
+  // The layout: rows of 1 or 2 photos. The photo order is read from it, top to bottom.
+  let rows = [];
+  (() => {
+    const fits = savedRows.length && savedRows.every((n) => n === 1 || n === 2) && savedRows.reduce((a, b) => a + b, 0) === initial.length;
+    const sizes = fits ? savedRows : Array.from({ length: Math.ceil(initial.length / 2) }, () => 2);
+    let i = 0;
+    sizes.forEach((n) => { const items = initial.slice(i, i + n); i += n; if (items.length) rows.push({ size: fits ? n : 2, items }); });
+  })();
+  const flat = () => rows.flatMap((r) => r.items);
+  const clean = () => { rows = rows.filter((r) => r.items.length); };
+  const where = (k) => { for (let r = 0; r < rows.length; r++) { const i = rows[r].items.indexOf(k); if (i >= 0) return [r, i]; } return null; };
+
+  function addPhoto(k) {
+    const last = rows[rows.length - 1];
+    if (last && last.size === 2 && last.items.length < 2) last.items.push(k); else rows.push({ size: 2, items: [k] });
+  }
+  function removePhoto(k) { const w = where(k); if (w) { rows[w[0]].items.splice(w[1], 1); clean(); } }
+  function swap(a, b) {
+    const wa = where(a), wb = where(b); if (!wa || !wb || a === b) return;
+    rows[wa[0]].items[wa[1]] = b; rows[wb[0]].items[wb[1]] = a;
+  }
+  function moveIntoRow(k, target) {
+    const w = where(k); if (!w || rows[w[0]] === target) return;
+    rows[w[0]].items.splice(w[1], 1); target.items.push(k); clean();
+  }
+  function step(k, dir) { const o = flat(), i = o.indexOf(k), j = i + dir; if (j >= 0 && j < o.length) swap(k, o[j]); }
+  function setSize(r, n) {
+    const row = rows[r]; if (row.size === n) return;
+    row.size = n;
+    if (n === 1 && row.items.length === 2) rows.splice(r + 1, 0, { size: 1, items: [row.items.pop()] });
+    if (n === 2 && row.items.length === 1 && rows[r + 1]) { row.items.push(rows[r + 1].items.shift()); clean(); }
+  }
+
+  const icon = (d) => '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="' + d + '"/></svg>';
+  let dragKey = null;
+  function dropTarget(el, onDrop) {
+    el.addEventListener('dragover', (e) => { if (dragKey) { e.preventDefault(); el.classList.add('over'); } });
+    el.addEventListener('dragleave', () => el.classList.remove('over'));
+    el.addEventListener('drop', (e) => { e.preventDefault(); el.classList.remove('over'); if (dragKey) { const from = dragKey; dragKey = null; onDrop(from); sync(); } });
+  }
+  function tile(k, n, total) {
+    const t = document.createElement('div'); t.className = 'tile'; t.draggable = true;
+    const img = document.createElement('img'); img.src = byKey[k].dataset.thumb; img.alt = ''; t.appendChild(img);
+    const b = document.createElement('span'); b.className = 'n'; b.textContent = n; t.appendChild(b);
+    const tools = document.createElement('div'); tools.className = 'tools';
+    [['M15 6l-6 6 6 6', 'Move earlier', -1, n === 1], ['M9 6l6 6-6 6', 'Move later', 1, n === total]].forEach(([d, label, dir, off]) => {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.innerHTML = icon(d); btn.setAttribute('aria-label', label + ' (photo ' + n + ')'); btn.disabled = off;
+      btn.addEventListener('click', () => { step(k, dir); sync(); }); tools.appendChild(btn); });
+    const x = document.createElement('button'); x.type = 'button'; x.innerHTML = icon('M6 6l12 12M18 6L6 18'); x.setAttribute('aria-label', 'Remove photo ' + n + ' from the post');
+    x.addEventListener('click', () => { removePhoto(k); sync(); }); tools.appendChild(x);
+    t.appendChild(tools);
+    t.addEventListener('dragstart', (e) => { dragKey = k; t.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', k); });
+    t.addEventListener('dragend', () => { t.classList.remove('dragging'); dragKey = null; });
+    dropTarget(t, (from) => swap(from, k));
+    return t;
+  }
 
   function sync() {
+    clean();
+    const order = flat();
     cards.forEach((c) => {
       const i = order.indexOf(c.dataset.key), on = i >= 0;
       c.classList.toggle('on', on);
@@ -175,14 +249,28 @@
       c.querySelector('.pick').setAttribute('aria-pressed', on ? 'true' : 'false');
     });
     document.getElementById('selCount').textContent = order.length;
+    document.getElementById('layoutRows').value = rows.map((r) => r.items.length).join(',');
     const prev = document.getElementById('preview'); prev.replaceChildren();
-    if (!order.length) { const p = document.createElement('p'); p.className = 'small muted'; p.style.margin = '0'; p.textContent = 'Pick at least one photo.'; prev.appendChild(p); }
-    for (let i = 0; i < order.length; i += 2) {
-      const pair = order.slice(i, i + 2), row = document.createElement('div');
-      row.className = 'preview-row'; row.style.gridTemplateColumns = pair.length === 2 ? 'repeat(2,minmax(0,1fr))' : 'minmax(0,1fr)';
-      pair.forEach((k) => { const img = document.createElement('img'); img.src = byKey[k].dataset.thumb; img.alt = ''; row.appendChild(img); });
-      prev.appendChild(row);
-    }
+    if (!order.length) { const p = document.createElement('p'); p.className = 'small muted'; p.style.margin = '0'; p.textContent = 'Pick at least one photo.'; prev.appendChild(p); return; }
+    let n = 0;
+    rows.forEach((row, r) => {
+      const box = document.createElement('div'); box.className = 'lrow';
+      const head = document.createElement('div'); head.className = 'lrow-head';
+      const lab = document.createElement('span'); lab.className = 'label'; lab.textContent = 'Row ' + (r + 1); head.appendChild(lab);
+      const seg = document.createElement('div'); seg.className = 'seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Photos in row ' + (r + 1));
+      [[1, '1 photo'], [2, '2 photos']].forEach(([size, text]) => {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.setAttribute('aria-pressed', row.size === size ? 'true' : 'false');
+        b.addEventListener('click', () => { setSize(r, size); sync(); }); seg.appendChild(b); });
+      head.appendChild(seg); box.appendChild(head);
+      const slots = document.createElement('div'); slots.className = 'slots';
+      slots.style.gridTemplateColumns = row.size === 2 ? 'repeat(2,minmax(0,1fr))' : 'minmax(0,1fr)';
+      row.items.forEach((k) => { n += 1; slots.appendChild(tile(k, n, order.length)); });
+      if (row.size === 2 && row.items.length === 1) {
+        const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Drag a photo here. Until then this row shows one photo full width.';
+        dropTarget(e, (from) => moveIntoRow(from, row)); slots.appendChild(e);
+      }
+      box.appendChild(slots); prev.appendChild(box);
+    });
   }
   function applyFilter() {
     cards.forEach((c) => {
@@ -201,13 +289,15 @@
   }
   cards.forEach((c) => c.querySelector('.pick').addEventListener('click', () => {
     const k = c.dataset.key;
-    order = order.includes(k) ? order.filter((x) => x !== k) : order.concat([k]);
+    if (where(k)) removePhoto(k); else addPhoto(k);
+    const order = flat();
     if (!document.querySelector('input[name=banner]:checked') && order.length) byKey[order[0]].querySelector('input[name=banner]').checked = true;
     sync();
   }));
   document.getElementById('publishBtn').addEventListener('click', (e) => {
-    if (!order.length) { e.preventDefault(); alert('Pick at least one photo first.'); return; }
-    if (!confirm('Upload the ' + order.length + ' picked photos and create a DRAFT portfolio post?')) e.preventDefault();
+    const count = flat().length;
+    if (!count) { e.preventDefault(); alert('Pick at least one photo first.'); return; }
+    if (!confirm('Upload the ' + count + ' picked photos and create a DRAFT portfolio post?')) e.preventDefault();
   });
   document.getElementById('reviewForm').addEventListener('submit', (e) => {
     const b = e.submitter; if (b && b.value === 'publish') { b.disabled = true; b.textContent = 'Creating the draft...';

@@ -59,7 +59,7 @@ def test_review_page_and_save(tmp_path):
         "action": "save", "title": "RNR Mansfield", "slug": "", "project_name": "RNR QSR",
         "location": "Mansfield, TX", "year": "2025", "excerpt": "x", "writeup": "Para one.\r\n\r\nPara two.",
         "categories": ["architecture", "qsr"], "use_k0": "1", "order_k0": "2", "use_k1": "1", "order_k1": "1",
-        "banner": "k0", "alt_k1": "Dining room",
+        "banner": "k0", "alt_k1": "Dining room", "layout_rows": "1,1",
     })
     assert resp.status_code == 302
     saved = pipeline.Job.load(job.path).data["draft"]
@@ -67,6 +67,7 @@ def test_review_page_and_save(tmp_path):
     assert saved["paragraphs"] == ["Para one.", "Para two."]
     assert saved["image_order"] == ["k1", "k0"]
     assert saved["alt"]["k1"] == "Dining room"
+    assert saved["layout_rows"] == [1, 1]
 
 
 def test_publish_builds_payload(tmp_path, monkeypatch):
